@@ -38,7 +38,8 @@ except ImportError:
     sys.exit("Missing dependency — run: pip install anthropic")
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
-REPO         = "wadegerencser/9800-wlc-automation"   # public GitHub target
+REPO         = "mgerencs/sac-mgerencs-9800-wlc-automation"
+GH_HOST      = "wwwin-github.cisco.com"              # Cisco internal GHE
 BASE_BRANCH  = "main"
 FILES_PER_PR = 2
 STATE_FILE   = Path.home() / ".9800_pr_state.json"
@@ -168,8 +169,15 @@ def generate_playbook(slug: str, desc: str) -> str:
     return header + "---\n" + body
 
 
-def run_cmd(cmd: list[str], cwd: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
+def run_cmd(cmd: list[str], cwd: str | None = None, extra_env: dict | None = None) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True, env=env)
+
+
+def gh(*args, cwd=None) -> subprocess.CompletedProcess:
+    return run_cmd(["gh"] + list(args), cwd=cwd, extra_env={"GH_HOST": GH_HOST})
 
 
 def create_pr(topics_and_playbooks: list[tuple[tuple, str]]) -> str:
@@ -179,8 +187,8 @@ def create_pr(topics_and_playbooks: list[tuple[tuple, str]]) -> str:
 
     tmpdir = tempfile.mkdtemp(prefix="9800_pr_")
     try:
-        print(f"  Cloning {REPO}...")
-        run_cmd(["gh", "repo", "clone", REPO, tmpdir])
+        print(f"  Cloning {REPO} from {GH_HOST}...")
+        gh("repo", "clone", REPO, tmpdir)
         run_cmd(["git", "checkout", BASE_BRANCH], cwd=tmpdir)
         run_cmd(["git", "checkout", "-b", branch], cwd=tmpdir)
 
@@ -197,22 +205,28 @@ def create_pr(topics_and_playbooks: list[tuple[tuple, str]]) -> str:
 
         commit_msg = "9800: " + ", ".join(t[0] for t, _ in topics_and_playbooks)
         run_cmd(["git", "commit", "-m", commit_msg], cwd=tmpdir)
-        run_cmd(["git", "push", "origin", branch], cwd=tmpdir)
+        run_cmd(["git", "push", "origin", branch], cwd=tmpdir)     # contribution 1: push
 
         pr_body = (
-            "Auto-generated Cisco 9800 WLC Ansible playbooks.\n\n"
+            "Auto-generated Cisco 9800 WLC Ansible automation playbooks.\n\n"
             "## Files\n"
             + "\n".join(file_lines)
-            + "\n\n_Generated with Claude._"
+            + "\n\n_Generated with Claude. Part of CX US Public Sector 9800 automation series._"
         )
-        result = run_cmd([
-            "gh", "pr", "create",
+        result = gh(                                                # contribution 2: PR open
+            "pr", "create",
             "--title", f"9800 automation – {today}",
             "--body", pr_body,
             "--base", BASE_BRANCH,
             "--head", branch,
-        ], cwd=tmpdir)
-        return result.stdout.strip()
+            cwd=tmpdir
+        )
+        pr_url = result.stdout.strip()
+
+        gh("pr", "merge", pr_url, "--merge", "--delete-branch",   # contribution 3: PR merge
+           cwd=tmpdir)
+        print(f"  Merged.")
+        return pr_url
 
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
