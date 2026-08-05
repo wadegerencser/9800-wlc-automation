@@ -42,7 +42,7 @@ REPO         = "wadegerencser/9800-wlc-automation"   # public GitHub target
 BASE_BRANCH  = "main"
 FILES_PER_PR = 2
 STATE_FILE   = Path.home() / ".9800_pr_state.json"
-MODEL        = "claude-sonnet-5"
+MODEL        = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # (slug, task description passed to Claude)
@@ -148,7 +148,9 @@ def next_topics(state: dict) -> list[tuple[str, str]]:
 
 
 def generate_playbook(slug: str, desc: str) -> str:
-    client = anthropic.Anthropic()
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    client = anthropic.Anthropic(api_key=api_key, **({"base_url": base_url} if base_url else {}))
     response = client.messages.create(
         model=MODEL,
         max_tokens=2048,
@@ -217,8 +219,8 @@ def create_pr(topics_and_playbooks: list[tuple[tuple, str]]) -> str:
 
 
 def main() -> None:
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        sys.exit("Set ANTHROPIC_API_KEY before running.")
+    if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")):
+        sys.exit("Set ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN before running.")
 
     state = load_state()
     selected = next_topics(state)
