@@ -18,6 +18,9 @@ fi
 touch "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
+# Load credentials (Twilio etc.) from ~/.9800_env if present
+[[ -f "$HOME/.9800_env" ]] && source "$HOME/.9800_env"
+
 # Uses Cisco LiteLLM proxy — keys come from ~/.claude/settings.json env block
 export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-${ANTHROPIC_API_KEY:-}}"
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://cx-us-ps-litellm.cisco.com}"

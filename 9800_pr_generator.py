@@ -37,6 +37,12 @@ try:
 except ImportError:
     sys.exit("Missing dependency — run: pip install anthropic")
 
+try:
+    from twilio.rest import Client as TwilioClient
+    _TWILIO_AVAILABLE = True
+except ImportError:
+    _TWILIO_AVAILABLE = False
+
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
 REPO         = "mgerencs/sac-mgerencs-9800-wlc-automation"
 GH_HOST      = "wwwin-github.cisco.com"              # Cisco internal GHE
@@ -232,6 +238,22 @@ def create_pr(topics_and_playbooks: list[tuple[tuple, str]]) -> str:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def send_sms(message: str) -> None:
+    if not _TWILIO_AVAILABLE:
+        return
+    sid   = os.environ.get("TWILIO_ACCOUNT_SID")
+    token = os.environ.get("TWILIO_AUTH_TOKEN")
+    from_ = os.environ.get("TWILIO_FROM_NUMBER")
+    to    = os.environ.get("TWILIO_TO_NUMBER")
+    if not all([sid, token, from_, to]):
+        return
+    try:
+        TwilioClient(sid, token).messages.create(body=message, from_=from_, to=to)
+        print("  SMS sent.")
+    except Exception as e:
+        print(f"  SMS failed: {e}")
+
+
 def main() -> None:
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")):
         sys.exit("Set ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN before running.")
@@ -253,8 +275,14 @@ def main() -> None:
     save_state(state)
 
     remaining = len(TOPICS) - len(state["completed"])
-    print(f"\nPR #{state['pr_count']} opened: {pr_url}")
+    print(f"\nPR #{state['pr_count']} merged: {pr_url}")
     print(f"Topics remaining this cycle: {remaining}/{len(TOPICS)}")
+
+    send_sms(
+        f"9800 PR #{state['pr_count']} merged ✓ "
+        f"Topics: {', '.join(t[0] for t in selected)}. "
+        f"{remaining} topics left this cycle."
+    )
 
 
 if __name__ == "__main__":
