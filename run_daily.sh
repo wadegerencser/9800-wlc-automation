@@ -9,7 +9,7 @@ LOG_FILE="$HOME/.9800_pr.log"
 # Uses Cisco LiteLLM proxy — set in ~/.claude/settings.json env block
 export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-${ANTHROPIC_API_KEY:-}}"
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://cx-us-ps-litellm.cisco.com}"
-export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-sonnet-4-6[1m]}"
+export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-sonnet-5}"
 
 if [[ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
     echo "$(date): ERROR — ANTHROPIC_AUTH_TOKEN not set" >> "$LOG_FILE"

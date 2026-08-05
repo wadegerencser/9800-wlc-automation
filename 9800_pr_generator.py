@@ -156,7 +156,7 @@ def generate_playbook(slug: str, desc: str) -> str:
         max_tokens=2048,
         messages=[{"role": "user", "content": PROMPT.format(desc=desc)}],
     )
-    body = response.content[0].text.strip()
+    body = next(b.text for b in response.content if b.type == "text").strip()
     if body.startswith("```"):
         lines = body.split("\n")
         body = "\n".join(lines[1:])
