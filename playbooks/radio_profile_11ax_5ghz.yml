@@ -1,0 +1,137 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+- name: Configure 802.11ax (Wi-Fi 6) 5 GHz radio profile on Catalyst 9800 WLC
+  hosts: wlc_9800
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+
+  vars:
+    ansible_network_os: cisco.ios.ios
+    controller_ip: 10.10.20.5
+    radius_server_name: ISE-PSN-01
+    radius_server_ip: 10.10.10.15
+    radius_server_key: "R@diusSecret123!"
+    ssid_name: Corp-WiFi6
+    wlan_id: 10
+    client_vlan: 110
+    rf_profile_name: RF-5GHZ-WIFI6-OPT
+    rf_tag_name: RFTAG-WIFI6-SITE1
+    policy_profile_name: POLICY-WIFI6-CORP
+    policy_tag_name: POLICYTAG-WIFI6-SITE1
+    ap_join_profile_name: APJOIN-DEFAULT
+
+  tasks:
+    - name: Configure RADIUS server
+      cisco.ios.ios_radius_server:
+        config:
+          - name: "{{ radius_server_name }}"
+            address:
+              ipv4:
+                host: "{{ radius_server_ip }}"
+                auth_port: 1812
+                acct_port: 1813
+            key: "{{ radius_server_key }}"
+            timeout: 5
+            retransmit: 3
+        state: merged
+
+    - name: Enable AAA new-model and dot1x authentication for wireless clients
+      cisco.ios.ios_config:
+        lines:
+          - aaa new-model
+          - aaa group server radius WIFI6-RADIUS-GRP
+          - server name {{ radius_server_name }}
+          - exit
+          - aaa authentication dot1x WIFI6-DOT1X group WIFI6-RADIUS-GRP
+          - aaa authorization network WIFI6-DOT1X group WIFI6-RADIUS-GRP
+
+    - name: Configure global 802.11ax OFDMA and MU-MIMO parameters for 5 GHz band
+      cisco.ios.ios_config:
+        parents:
+          - ap dot11 5ghz
+          - dot11ax
+        lines:
+          - ofdma dl
+          - ofdma ul
+          - mu-mimo dl
+          - mu-mimo ul
+
+    - name: Create optimised 5 GHz RF profile
+      cisco.ios.ios_config:
+        parents:
+          - ap dot11 5ghz rf-profile {{ rf_profile_name }}
+        lines:
+          - description "Optimised Wi-Fi6 5GHz RF Profile"
+          - txpower min 8
+          - txpower max 17
+          - channel-width 80
+          - rx-sop threshold custom -76
+
+    - name: Configure 802.11ax MCS, spatial streams and OFDMA under RF profile
+      cisco.ios.ios_config:
+        parents:
+          - ap dot11 5ghz rf-profile {{ rf_profile_name }}
+          - dot11ax
+        lines:
+          - dl-ofdma enable
+          - ul-ofdma enable
+          - dl-mumimo enable
+          - ul-mumimo enable
+          - mcs tx-11ax 0-11 ss 4
+          - mcs rx-11ax 0-11 ss 4
+
+    - name: Enable the 5 GHz RF profile
+      cisco.ios.ios_config:
+        parents:
+          - ap dot11 5ghz rf-profile {{ rf_profile_name }}
+        lines:
+          - no shutdown
+
+    - name: Create RF tag referencing the optimised 5 GHz RF profile
+      cisco.ios.ios_config:
+        parents:
+          - wireless tag rf {{ rf_tag_name }}
+        lines:
+          - 5ghz-rf-policy {{ rf_profile_name }}
+          - 24ghz-rf-policy default-rf-profile-2.4ghz
+
+    - name: Create dot11ax-capable WLAN with WPA2/802.1x security
+      cisco.ios.ios_config:
+        lines:
+          - wlan {{ ssid_name }} {{ wlan_id }} {{ ssid_name }}
+          - security dot1x authentication-list WIFI6-DOT1X
+          - security pmf optional
+          - security wpa akm dot1x
+          - no shutdown
+
+    - name: Create wireless policy profile for Wi-Fi 6 clients
+      cisco.ios.ios_config:
+        parents:
+          - wireless profile policy {{ policy_profile_name }}
+        lines:
+          - vlan {{ client_vlan }}
+          - no shutdown
+
+    - name: Create policy tag mapping WLAN to policy profile
+      cisco.ios.ios_config:
+        parents:
+          - wireless tag policy {{ policy_tag_name }}
+        lines:
+          - wlan {{ ssid_name }} policy {{ policy_profile_name }}
+
+    - name: Apply RF tag and policy tag to AP join profile
+      cisco.ios.ios_config:
+        parents:
+          - ap profile {{ ap_join_profile_name }}
+        lines:
+          - hyperlocation enable
+
+    - name: Save running configuration to startup configuration
+      cisco.ios.ios_config:
+        save_when: modified
