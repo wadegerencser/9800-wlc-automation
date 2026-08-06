@@ -1,0 +1,152 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# ============================================================================
+# Playbook: Configure 802.11ax 2.4GHz RF Profile with CCK Rates Disabled
+# Target:   Cisco Catalyst 9800 WLC (IOS-XE)
+# ============================================================================
+- name: Configure 802.11ax 2.4GHz radio profile with legacy CCK rates disabled
+  hosts: wlc_9800
+  connection: network_cli
+  gather_facts: false
+
+  vars:
+    controller_ip: 10.10.20.5
+    controller_username: admin
+    controller_password: "ChangeMe_Str0ng!"
+
+    radius_server_name: RAD-SRV-01
+    radius_server_ip: 10.10.30.10
+    radius_server_key: "R@diusSecretKey123"
+    radius_auth_port: 1812
+    radius_acct_port: 1813
+
+    ssid_name: CORP-WLAN
+    wlan_id: 10
+    wlan_profile_name: CORP-WLAN-PROFILE
+
+    rf_profile_name: RF-2.4GHZ-AX-NO-CCK
+    dot11_band: dot11-2-4ghz
+    policy_tag_name: CORP-POLICY-TAG
+    ap_join_profile_name: CORP-AP-JOIN-PROFILE
+
+    # Legacy CCK (802.11b) data rates to disable on the 2.4GHz radio
+    cck_rates_to_disable:
+      - "1"
+      - "2"
+      - "5.5"
+      - "11"
+
+    # OFDM/HT/HE rates to keep mandatory/supported (11ax capable)
+    mandatory_rate: "24"
+    supported_rates:
+      - "6"
+      - "9"
+      - "12"
+      - "18"
+      - "24"
+      - "36"
+      - "48"
+      - "54"
+
+  tasks:
+
+    - name: Configure RADIUS server
+      cisco.ios.ios_config:
+        lines:
+          - address ipv4 {{ radius_server_ip }} auth-port {{ radius_auth_port }} acct-port {{ radius_acct_port }}
+          - key {{ radius_server_key }}
+        parents: "radius server {{ radius_server_name }}"
+
+    - name: Enable RADIUS AAA authentication and accounting for dot1x
+      cisco.ios.ios_config:
+        lines:
+          - aaa new-model
+          - aaa authentication dot1x default group radius
+          - aaa accounting network default start-stop group radius
+          - aaa server radius dynamic-author
+
+    - name: Create 802.11ax 2.4GHz RF profile
+      cisco.ios.ios_config:
+        lines:
+          - description "2.4GHz AX profile with CCK disabled"
+          - dot11ax enable
+        parents: "ap dot11 24ghz rf-profile {{ rf_profile_name }}"
+
+    - name: Disable legacy CCK (802.11b) data rates on the RF profile
+      cisco.ios.ios_config:
+        lines: "{{ cck_rates_to_disable | map('regex_replace', '^(.*)$', 'no dot11 24ghz rate ' + rf_profile_name + ' rate-\\1') | list }}"
+      register: cck_disable_result
+      ignore_errors: true
+
+    - name: Set mandatory and supported rates on 2.4GHz RF profile (OFDM/HE only)
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 24ghz rf-profile {{ rf_profile_name }}
+          {% for rate in supported_rates %}
+          {% if rate == mandatory_rate %}
+          rate RATE_{{ rate }}M mandatory
+          {% else %}
+          rate RATE_{{ rate }}M supported
+          {% endif %}
+          {% endfor %}
+          rate RATE_1M disable
+          rate RATE_2M disable
+          rate RATE_5_5M disable
+          rate RATE_11M disable
+          exit
+
+    - name: Enable 802.11ax high-throughput features on 2.4GHz band
+      cisco.ios.ios_config:
+        lines:
+          - dot11ax enable
+          - dot11 24ghz dtpc
+          - dot11 24ghz shortpreamble disable
+        parents: "ap dot11 24ghz"
+
+    - name: Create AP join profile referencing RF profile
+      cisco.ios.ios_config:
+        lines:
+          - description "Corp AP Join Profile - 802.11ax 2.4GHz"
+        parents: "ap profile {{ ap_join_profile_name }}"
+
+    - name: Configure WLAN for corporate SSID
+      cisco.ios.ios_config:
+        lines:
+          - security wpa akm dot1x
+          - security wpa wpa2 ciphers aes
+          - no shutdown
+        parents: "wlan {{ ssid_name }} {{ wlan_id }} {{ ssid_name }}"
+
+    - name: Create wireless policy profile
+      cisco.ios.ios_config:
+        lines:
+          - aaa-override
+          - nac
+          - no shutdown
+        parents: "wireless profile policy {{ wlan_profile_name }}"
+
+    - name: Create policy tag and bind WLAN to policy profile
+      cisco.ios.ios_config:
+        lines:
+          - "wlan {{ ssid_name }} policy {{ wlan_profile_name }}"
+        parents: "wireless tag policy {{ policy_tag_name }}"
+
+    - name: Bind 2.4GHz RF profile to AP join profile radio config
+      ansible.netcommon.cli_config:
+        config: |
+          ap profile {{ ap_join_profile_name }}
+          rf-tag default-rf-tag
+          exit
+          wireless tag rf default-rf-tag
+          24ghz-rf-policy {{ rf_profile_name }}
+          exit
+
+    - name: Save running configuration to startup configuration
+      cisco.ios.ios_config:
+        save_when: always
