@@ -1,0 +1,124 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+- name: Configure high-density RF profile on Cisco Catalyst 9800 WLC
+  hosts: wlc_9800
+  connection: network_cli
+  gather_facts: false
+
+  vars:
+    controller_ip: 10.10.20.5
+    radius_server_ip: 10.10.10.50
+    radius_server_key: "MySecureRadiusKey123"
+    ssid_name: "Corp-HighDensity"
+    rf_profile_name: "RF-HighDensity-5GHz"
+    rf_profile_band: "5"
+    rf_profile_description: "High density RF profile with reduced Tx power and tight RSSI thresholds"
+    min_tx_power: 5
+    max_tx_power: 11
+    min_rssi_client: -67
+    min_rssi_probe_request: -80
+    data_rssi_threshold: -67
+    voice_rssi_threshold: -67
+    rrm_channel_interval: 600
+    rrm_tpc_threshold: -70
+    high_density_max_clients: 30
+    high_density_max_radio_clients: 200
+
+  tasks:
+    - name: Create high-density RF profile for 5GHz band
+      cisco.ios.ios_config:
+        lines:
+          - description {{ rf_profile_description }}
+          - client-network-preference default
+          - max-clients {{ high_density_max_clients }}
+          - max-radio-clients {{ high_density_max_radio_clients }}
+          - power min {{ min_tx_power }}
+          - power max {{ max_tx_power }}
+          - rx-sop threshold high
+          - data-rate 12 mandatory
+          - data-rate 24 mandatory
+          - data-rate 6 disabled
+          - data-rate 9 disabled
+        parents: ap dot11 5ghz rf-profile {{ rf_profile_name }}
+
+    - name: Enable the high-density RF profile
+      cisco.ios.ios_config:
+        lines:
+          - no shutdown
+        parents: ap dot11 5ghz rf-profile {{ rf_profile_name }}
+
+    - name: Configure RSSI thresholds for client and probe minimums under RF profile
+      cisco.ios.ios_config:
+        lines:
+          - rf-profile {{ rf_profile_name }}
+          - client rssi high-density
+        parents: wireless profile policy default-policy-profile
+
+    - name: Set minimum RSSI for client association
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 5ghz rf-profile {{ rf_profile_name }}
+          rrm client minimum-rssi {{ min_rssi_client }}
+
+    - name: Set minimum RSSI for probe request processing
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 5ghz rf-profile {{ rf_profile_name }}
+          rrm client probe minimum-rssi {{ min_rssi_probe_request }}
+
+    - name: Configure RRM transmit power control threshold for high density
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 5ghz rrm tpc-threshold {{ rrm_tpc_threshold }}
+
+    - name: Configure RRM dynamic channel assignment interval
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 5ghz rrm channel dca interval {{ rrm_channel_interval }}
+
+    - name: Enable RRM coverage hole detection thresholds tuned for high density
+      ansible.netcommon.cli_config:
+        config: |
+          ap dot11 5ghz rrm coverage data rssi threshold {{ data_rssi_threshold }}
+          ap dot11 5ghz rrm coverage voice rssi threshold {{ voice_rssi_threshold }}
+
+    - name: Configure RADIUS server for authentication
+      cisco.ios.ios_config:
+        lines:
+          - address ipv4 {{ radius_server_ip }} auth-port 1812 acct-port 1813
+          - key {{ radius_server_key }}
+          - timeout 5
+          - retransmit 3
+        parents: radius server RAD-SRV-HD
+
+    - name: Create wireless policy profile for high-density SSID
+      cisco.ios.ios_config:
+        lines:
+          - description High-density policy profile for {{ ssid_name }}
+          - rf-profile {{ rf_profile_name }}
+          - no shutdown
+        parents: wireless profile policy HD-Policy-Profile
+
+    - name: Configure WLAN for high-density SSID
+      cisco.ios.ios_config:
+        lines:
+          - security wpa akm dot1x
+          - security wpa wpa2 ciphers aes
+          - no shutdown
+        parents: wlan {{ ssid_name }} 1 {{ ssid_name }}
+
+    - name: Map WLAN to policy profile and RF profile via policy tag
+      cisco.ios.ios_config:
+        lines:
+          - wlan {{ ssid_name }} policy HD-Policy-Profile
+        parents: wireless tag policy HD-Policy-Tag
+
+    - name: Save running configuration to startup configuration
+      cisco.ios.ios_config:
+        save_when: modified
