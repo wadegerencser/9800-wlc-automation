@@ -157,7 +157,8 @@ def generate_playbook(slug: str, desc: str) -> str:
     client = anthropic.Anthropic(api_key=api_key, **({"base_url": base_url} if base_url else {}))
     response = client.messages.create(
         model=MODEL,
-        max_tokens=8192,
+        max_tokens=4096,
+        thinking={"type": "disabled"},
         messages=[{"role": "user", "content": PROMPT.format(desc=desc)}],
     )
     text_blocks = [b.text for b in response.content if b.type == "text"]
