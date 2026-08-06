@@ -18,11 +18,16 @@ fi
 touch "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
-# Load credentials (Twilio etc.) from ~/.9800_env if present
+# Load credentials from ~/.9800_env if present
 [[ -f "$HOME/.9800_env" ]] && source "$HOME/.9800_env"
 
-# Uses Cisco LiteLLM proxy — keys come from ~/.claude/settings.json env block
-export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-${ANTHROPIC_API_KEY:-}}"
+# Pull ANTHROPIC_AUTH_TOKEN from ~/.claude/settings.json if not already set
+if [[ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
+    export ANTHROPIC_AUTH_TOKEN=$(python3 -c \
+        "import json; d=json.load(open('$HOME/.claude/settings.json')); print(d.get('env',{}).get('ANTHROPIC_AUTH_TOKEN',''))" \
+        2>/dev/null)
+fi
+
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://cx-us-ps-litellm.cisco.com}"
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-sonnet-5}"
 
