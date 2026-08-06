@@ -157,10 +157,13 @@ def generate_playbook(slug: str, desc: str) -> str:
     client = anthropic.Anthropic(api_key=api_key, **({"base_url": base_url} if base_url else {}))
     response = client.messages.create(
         model=MODEL,
-        max_tokens=2048,
+        max_tokens=8192,
         messages=[{"role": "user", "content": PROMPT.format(desc=desc)}],
     )
-    body = next(b.text for b in response.content if b.type == "text").strip()
+    text_blocks = [b.text for b in response.content if b.type == "text"]
+    if not text_blocks:
+        raise RuntimeError(f"No text in response. Blocks: {[b.type for b in response.content]}")
+    body = text_blocks[0].strip()
     if body.startswith("```"):
         lines = body.split("\n")
         body = "\n".join(lines[1:])
