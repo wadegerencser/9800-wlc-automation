@@ -1,0 +1,178 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# WPA3 SSID Adoption – Cisco Catalyst 9800 WLC
+#
+# Deploys a WPA3 SSID in one of three modes, controlled by `wpa3_mode`:
+#   personal    – WPA3-Personal (SAE)               → consumer / SMB
+#   enterprise  – WPA3-Enterprise (802.1X + PMF)    → corporate
+#   transition  – WPA2+WPA3 mixed mode               → migration phase
+#
+# Requires
+#   ansible-galaxy collection install cisco.ios
+#   ansible-galaxy collection install cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k wpa3_ssid_adoption.yml
+#
+#   Windows – requires WSL 2 (Ansible has no native Windows control-node)
+#     # One-time setup (PowerShell as Administrator):
+#     wsl --install
+#     # Then from the WSL shell:
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k wpa3_ssid_adoption.yml
+#
+#   Windows – alternative: run from a Linux container or remote jump host
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: WPA3 SSID Adoption – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars:
+    # ── Controller connectivity ───────────────────────────────────────────────
+    ansible_network_os: cisco.ios.ios
+    ansible_connection: network_cli
+
+    # ── WLAN identity ─────────────────────────────────────────────────────────
+    wlan_id:    1                       # 1–512; must be unique on this WLC
+    ssid_name:  "CORP-WPA3"
+    wlan_name:  "wpa3-adoption"         # profile name — no spaces
+
+    # ── WPA3 deployment mode ──────────────────────────────────────────────────
+    wpa3_mode: "personal"               # personal | enterprise | transition
+
+    # ── WPA3-Personal passphrase (SAE) ────────────────────────────────────────
+    # Store this in ansible-vault in production — never plaintext in SCM.
+    sae_passphrase: "ChangeMe-Str0ng!"  # min 8 characters
+
+    # ── WPA3-Enterprise / RADIUS ──────────────────────────────────────────────
+    radius_server_ip:  "10.0.0.50"
+    radius_auth_port:  1812
+    radius_acct_port:  1813
+    radius_shared_key: "RadiusShared"   # use ansible-vault in production
+    aaa_server_group:  "RADIUS-WPA3"
+    dot1x_method_list: "dot1x-WPA3"
+
+    # ── Network ───────────────────────────────────────────────────────────────
+    vlan_id: 100
+
+    # ── Policy / tag names ────────────────────────────────────────────────────
+    policy_profile: "wpa3-policy"
+    policy_tag:     "wpa3-tag"
+
+  tasks:
+
+    # ── Pre-flight ─────────────────────────────────────────────────────────────
+    - name: Validate wpa3_mode
+      ansible.builtin.fail:
+        msg: "wpa3_mode must be 'personal', 'enterprise', or 'transition' — got: {{ wpa3_mode }}"
+      when: wpa3_mode not in ['personal', 'enterprise', 'transition']
+
+    # ── AAA / RADIUS  (enterprise and transition modes only) ──────────────────
+    - name: Configure RADIUS authentication server
+      cisco.ios.ios_config:
+        lines:
+          - "radius server {{ aaa_server_group }}"
+          - " address ipv4 {{ radius_server_ip }} auth-port {{ radius_auth_port }} acct-port {{ radius_acct_port }}"
+          - " key {{ radius_shared_key }}"
+      when: wpa3_mode in ['enterprise', 'transition']
+
+    - name: Create RADIUS server group
+      cisco.ios.ios_config:
+        lines:
+          - "aaa group server radius {{ aaa_server_group }}"
+          - " server name {{ aaa_server_group }}"
+      when: wpa3_mode in ['enterprise', 'transition']
+
+    - name: Create 802.1X AAA method list
+      cisco.ios.ios_config:
+        lines:
+          - "aaa authentication dot1x {{ dot1x_method_list }} group {{ aaa_server_group }}"
+      when: wpa3_mode in ['enterprise', 'transition']
+
+    # ── WPA3-Personal (SAE) ────────────────────────────────────────────────────
+    - name: Create WLAN – WPA3 Personal
+      cisco.ios.ios_config:
+        lines:
+          - "wlan {{ wlan_name }} {{ wlan_id }} {{ ssid_name }}"
+          - " security wpa wpa3"
+          - " security wpa wpa2 disable"
+          - " security wpa akm sae"
+          - " no security wpa akm dot1x"
+          - " security wpa psk set-key ascii 0 {{ sae_passphrase }}"
+          - " security pmf required"
+          - " no shutdown"
+      when: wpa3_mode == 'personal'
+
+    # ── WPA3-Enterprise (802.1X + PMF mandatory) ──────────────────────────────
+    - name: Create WLAN – WPA3 Enterprise
+      cisco.ios.ios_config:
+        lines:
+          - "wlan {{ wlan_name }} {{ wlan_id }} {{ ssid_name }}"
+          - " security wpa wpa3"
+          - " security wpa wpa2 disable"
+          - " security wpa akm dot1x"
+          - " no security wpa akm psk"
+          - " security dot1x authentication-list {{ dot1x_method_list }}"
+          - " security pmf required"
+          - " no shutdown"
+      when: wpa3_mode == 'enterprise'
+
+    # ── WPA2/WPA3 Transition Mode  (PMF optional for backward compat) ─────────
+    - name: Create WLAN – WPA2/WPA3 Transition Mode
+      cisco.ios.ios_config:
+        lines:
+          - "wlan {{ wlan_name }} {{ wlan_id }} {{ ssid_name }}"
+          - " security wpa wpa2"
+          - " security wpa wpa3"
+          - " security wpa akm sae"
+          - " security wpa akm psk"
+          - " security wpa psk set-key ascii 0 {{ sae_passphrase }}"
+          - " security pmf optional"
+          - " no shutdown"
+      when: wpa3_mode == 'transition'
+
+    # ── Policy profile ────────────────────────────────────────────────────────
+    - name: Create WLAN policy profile
+      cisco.ios.ios_config:
+        lines:
+          - "wireless profile policy {{ policy_profile }}"
+          - " vlan {{ vlan_id }}"
+          - " dhcp-tlv-caching"
+          - " http-tlv-caching"
+          - " no shutdown"
+
+    # ── Policy tag (maps WLAN → policy profile) ───────────────────────────────
+    - name: Create policy tag
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag policy {{ policy_tag }}"
+          - " wlan {{ wlan_name }} policy {{ policy_profile }}"
+
+    # ── Verify ────────────────────────────────────────────────────────────────
+    - name: Show WLAN status
+      cisco.ios.ios_command:
+        commands:
+          - "show wlan name {{ wlan_name }}"
+      register: wlan_status
+
+    - name: Assert WLAN is enabled
+      ansible.builtin.assert:
+        that:
+          - "'Enabled' in wlan_status.stdout[0]"
+        fail_msg: "WLAN {{ wlan_name }} did not come up — review controller logs"
+        success_msg: "WLAN {{ wlan_name }} ({{ ssid_name }}) is operational in {{ wpa3_mode }} mode"

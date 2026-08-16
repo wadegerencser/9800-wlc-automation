@@ -1,0 +1,22 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored — never commit credentials to SCM.
+
+wlc_host     = "192.168.1.1"
+wlc_username = "admin"
+wlc_password = "YourWLCPassword"   # or: export TF_VAR_wlc_password=...
+
+wpa3_mode         = "personal"       # personal | enterprise | transition
+wlan_id           = 1
+ssid_name         = "CORP-WPA3"
+wlan_profile_name = "wpa3-adoption"
+vlan_id           = 100
+
+# personal + transition modes
+sae_passphrase = "ChangeMe-Str0ng!"  # or: export TF_VAR_sae_passphrase=...
+
+# enterprise + transition modes
+radius_server_ip  = "10.0.0.50"
+radius_shared_key = "RadiusShared"   # or: export TF_VAR_radius_shared_key=...
+
+policy_profile_name = "wpa3-policy"
+policy_tag_name     = "wpa3-tag"
