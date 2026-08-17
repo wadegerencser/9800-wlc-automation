@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars — never commit to SCM.
+wlc_host     = "192.168.1.1"
+wlc_username = "admin"
+wlc_password = "CHANGEME"   # use TF_VAR_wlc_password
+
+site_tags = [
+  {
+    name         = "Site-HQ"
+    description  = "Headquarters — NaC managed"
+    ap_profile   = "AP-Join-Standard"
+    local_site   = false
+    flex_profile = ""
+  },
+  {
+    name         = "Site-Branch-01"
+    description  = "Branch Office 01 — NaC managed"
+    ap_profile   = "AP-Join-Standard"
+    local_site   = true
+    flex_profile = "Flex-Branch"
+  }
+]
