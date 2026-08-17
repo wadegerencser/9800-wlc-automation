@@ -1,0 +1,174 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# RF Profile Hardening – Cisco Catalyst 9800 WLC
+#
+# Configures 2.4 GHz and 5 GHz RF profiles with RRM, TPC, DCA, band steering,
+# and per-radio client density limits. Designed for enterprise and government
+# high-density deployments.
+#
+# Requires:
+#   ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_harden_9800.yml -e @vars/rf_profile_defaults.yml
+#
+#     Dry-run:
+#     ansible-playbook ... --check --diff
+#
+#   Windows – WSL 2 (Ansible has no native Windows control node)
+#     wsl --install                   # PowerShell as Administrator, one-time
+#     pip install ansible             # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_harden_9800.yml -e @vars/rf_profile_defaults.yml
+#
+#   Windows – Docker alternative (no WSL required)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: RF Profile Hardening – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/rf_profile_defaults.yml
+
+  tasks:
+
+    # ── 2.4 GHz RF Profile ────────────────────────────────────────────────────
+    - name: Create 2.4 GHz RF profile
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ rf_profile_24ghz_description }}"
+          - "max-clients {{ rf_24_max_clients_per_radio }}"
+          - "power min {{ rf_24_min_tx_power }}"
+          - "power max {{ rf_24_max_tx_power }}"
+          - "rx-sop threshold {{ rf_24_rx_sop_threshold }}"
+          - "coverage data rssi-threshold {{ rf_24_coverage_min_rssi }}"
+          - "coverage exception global {{ rf_24_coverage_exception }}"
+        parents: "ap dot11 24ghz rf-profile {{ rf_profile_24ghz_name }}"
+
+    - name: Disable legacy 2.4 GHz data rates
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 24ghz rate {{ item }} disable"
+      loop: "{{ rf_24_disable_rates }}"
+
+    - name: Set 2.4 GHz mandatory data rates
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 24ghz rate {{ item }} mandatory"
+      loop: "{{ rf_24_mandatory_rates }}"
+
+    - name: Configure 2.4 GHz DCA channels
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 24ghz rrm channel dca chan-width 20"
+          - "ap dot11 24ghz rrm channel update interval {{ rf_24_dca_interval }}"
+
+    - name: Configure 2.4 GHz band steering
+      cisco.ios.ios_config:
+        lines:
+          - "wireless band-select probe-response"
+          - "wireless band-select cycle-count {{ rf_24_band_select_cycle_count }}"
+          - "wireless band-select cycle-threshold {{ rf_24_band_select_cycle_threshold }}"
+          - "wireless band-select age-out-suppression {{ rf_24_band_select_age_timeout }}"
+      when: rf_24_band_select_probe_response | bool
+
+    - name: Enable 2.4 GHz RF profile
+      cisco.ios.ios_config:
+        lines:
+          - "no shutdown"
+        parents: "ap dot11 24ghz rf-profile {{ rf_profile_24ghz_name }}"
+
+    # ── 5 GHz RF Profile ──────────────────────────────────────────────────────
+    - name: Create 5 GHz RF profile
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ rf_profile_5ghz_description }}"
+          - "max-clients {{ rf_5_max_clients_per_radio }}"
+          - "power min {{ rf_5_min_tx_power }}"
+          - "power max {{ rf_5_max_tx_power }}"
+          - "rx-sop threshold {{ rf_5_rx_sop_threshold }}"
+          - "channel width {{ rf_5_channel_width }}"
+          - "coverage data rssi-threshold {{ rf_5_coverage_min_rssi }}"
+          - "coverage exception global {{ rf_5_coverage_exception }}"
+        parents: "ap dot11 5ghz rf-profile {{ rf_profile_5ghz_name }}"
+
+    - name: Disable legacy 5 GHz data rates
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 5ghz rate {{ item }} disable"
+      loop: "{{ rf_5_disable_rates }}"
+
+    - name: Set 5 GHz mandatory data rates
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 5ghz rate {{ item }} mandatory"
+      loop: "{{ rf_5_mandatory_rates }}"
+
+    - name: Configure 5 GHz DCA interval
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 5ghz rrm channel update interval {{ rf_5_dca_interval }}"
+
+    - name: Enable 5 GHz RF profile
+      cisco.ios.ios_config:
+        lines:
+          - "no shutdown"
+        parents: "ap dot11 5ghz rf-profile {{ rf_profile_5ghz_name }}"
+
+    # ── Global RRM ────────────────────────────────────────────────────────────
+    - name: Configure RRM mode for 2.4 GHz
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 24ghz rrm channel automatic"
+          - "ap dot11 24ghz rrm txpower automatic"
+      when: rrm_mode == 'automatic'
+
+    - name: Configure RRM mode for 5 GHz
+      cisco.ios.ios_config:
+        lines:
+          - "ap dot11 5ghz rrm channel automatic"
+          - "ap dot11 5ghz rrm txpower automatic"
+      when: rrm_mode == 'automatic'
+
+    # ── Verify ────────────────────────────────────────────────────────────────
+    - name: Show 2.4 GHz RF profile summary
+      cisco.ios.ios_command:
+        commands:
+          - "show ap dot11 24ghz rf-profile summary"
+      register: rf24_status
+
+    - name: Show 5 GHz RF profile summary
+      cisco.ios.ios_command:
+        commands:
+          - "show ap dot11 5ghz rf-profile summary"
+      register: rf5_status
+
+    - name: Assert 2.4 GHz profile exists
+      ansible.builtin.assert:
+        that:
+          - "rf_profile_24ghz_name in rf24_status.stdout[0]"
+        fail_msg: "2.4 GHz RF profile '{{ rf_profile_24ghz_name }}' not found"
+        success_msg: "2.4 GHz RF profile '{{ rf_profile_24ghz_name }}' confirmed"
+
+    - name: Assert 5 GHz profile exists
+      ansible.builtin.assert:
+        that:
+          - "rf_profile_5ghz_name in rf5_status.stdout[0]"
+        fail_msg: "5 GHz RF profile '{{ rf_profile_5ghz_name }}' not found"
+        success_msg: "5 GHz RF profile '{{ rf_profile_5ghz_name }}' confirmed"
