@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars — never commit terraform.tfvars to SCM.
+# Use TF_VAR_wlc_password to pass the password via environment variable.
+
+wlc_host     = "192.168.1.1"
+wlc_username = "admin"
+wlc_password = "CHANGEME"
+
+rf_profile_24ghz_name = "RF-2.4GHz-Standard"
+rf_profile_5ghz_name  = "RF-5GHz-Standard"
+rf_24_min_tx_power    = 7
+rf_24_max_tx_power    = 17
+rf_5_min_tx_power     = 8
+rf_5_max_tx_power     = 17
+rf_5_channel_width    = "best"

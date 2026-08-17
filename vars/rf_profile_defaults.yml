@@ -1,0 +1,89 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# RF Profile Hardening Defaults – Cisco Catalyst 9800 WLC
+#
+# Covers 2.4 GHz (802.11b/g/n) and 5 GHz (802.11a/n/ac/ax) RF profiles
+# with RRM, TPC, DCA, band steering, and client density thresholds.
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_harden_9800.yml -e @vars/rf_profile_defaults.yml
+#
+#   Windows (WSL 2)
+#     wsl --install          # PowerShell as Administrator, one-time
+#     pip install ansible    # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_harden_9800.yml -e @vars/rf_profile_defaults.yml
+#
+#   Dry-run: ansible-playbook ... --check --diff
+# =============================================================================
+
+# ── 2.4 GHz RF Profile ────────────────────────────────────────────────────────
+rf_profile_24ghz_name:        "RF-2.4GHz-Standard"
+rf_profile_24ghz_description: "2.4 GHz RF profile — NaC managed"
+
+rf_24_min_tx_power:           7        # dBm — avoid co-channel interference
+rf_24_max_tx_power:           17
+rf_24_tpc_threshold:          -70      # dBm coverage hole trigger
+rf_24_rx_sop_threshold:       "medium" # low | medium | high | auto
+rf_24_max_clients_per_radio:  200
+rf_24_max_clients_per_wlan:   25
+
+# Data rates: disable legacy rates to reduce airtime waste
+rf_24_disable_rates:          ["1", "2", "5.5"]
+rf_24_mandatory_rates:        ["11"]
+rf_24_supported_rates:        ["6", "9", "12", "18", "24", "36", "48", "54"]
+
+# RRM channel assignment (DCA)
+rf_24_dca_channels:           [1, 6, 11]   # Non-overlapping 2.4 GHz channels
+rf_24_dca_interval:           600           # seconds
+
+# Coverage hole detection
+rf_24_coverage_exception:     25    # % clients below threshold before alert
+rf_24_coverage_min_rssi:      -80   # dBm
+
+# Band steering — push dual-band clients to 5 GHz
+rf_24_band_select_probe_response: true
+rf_24_band_select_cycle_count:    2
+rf_24_band_select_cycle_threshold: 200  # ms
+rf_24_band_select_age_timeout:    40    # seconds
+
+# ── 5 GHz RF Profile ──────────────────────────────────────────────────────────
+rf_profile_5ghz_name:         "RF-5GHz-Standard"
+rf_profile_5ghz_description:  "5 GHz RF profile — NaC managed"
+
+rf_5_min_tx_power:            8
+rf_5_max_tx_power:            17
+rf_5_tpc_threshold:           -70
+rf_5_rx_sop_threshold:        "medium"
+rf_5_max_clients_per_radio:   200
+rf_5_max_clients_per_wlan:    50
+rf_5_channel_width:           "best"   # 20 | 40 | 80 | best
+
+# Data rates: disable 802.11a legacy rates
+rf_5_disable_rates:           ["6", "9"]
+rf_5_mandatory_rates:         ["12", "24"]
+rf_5_supported_rates:         ["18", "36", "48", "54"]
+
+# DCA — allow all non-DFS + DFS channels
+rf_5_dca_channels:            [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 132, 136, 140, 149, 153, 157, 161, 165]
+rf_5_dca_interval:            600
+
+# Coverage hole detection
+rf_5_coverage_exception:      25
+rf_5_coverage_min_rssi:       -80
+
+# ── Shared RRM Settings ───────────────────────────────────────────────────────
+rrm_mode:                     "automatic"   # automatic | off
+rrm_neighbor_timeout:         120           # seconds before AP removed from neighbor list
