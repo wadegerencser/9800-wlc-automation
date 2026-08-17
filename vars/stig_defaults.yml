@@ -1,0 +1,99 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# STIG Hardening Defaults – Cisco Catalyst 9800 WLC (IOS-XE)
+#
+# Maps to DISA STIG: Cisco IOS-XE Router NDM STIG
+# NIST SP 800-53 Rev 5 control family references noted per variable group.
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/stig_harden_9800.yml -e @vars/stig_defaults.yml
+#
+#   Windows (WSL 2 — Ansible has no native Windows control node)
+#     wsl --install                     # PowerShell as Administrator, one-time
+#     pip install ansible               # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/stig_harden_9800.yml -e @vars/stig_defaults.yml
+#
+#   Override any variable at runtime without editing this file:
+#     ansible-playbook ... -e "syslog_server=10.1.2.3"
+#
+# WARNING: Replace ALL placeholder values before production use.
+#          Store secrets in Ansible Vault — never commit plaintext to SCM.
+# =============================================================================
+
+# ── Controller connectivity ──────────────────────────────────────────────────
+ansible_network_os: cisco.ios.ios
+ansible_connection:  network_cli
+
+# ── SSH Hardening  (NIST: SC-8, SC-10 | STIG: V-220151, V-220152) ───────────
+ssh_version:         2
+ssh_timeout:         60
+ssh_auth_retries:    3
+
+# ── Exec Timeout  (NIST: AC-11, AC-12 | STIG: V-220153) ─────────────────────
+exec_timeout_minutes: 10
+exec_timeout_seconds: 0
+
+# ── DoD Login Banner  (NIST: AC-8 | STIG: V-220142) ─────────────────────────
+login_banner: |
+  You are accessing a U.S. Government (USG) Information System (IS) that is
+  provided for USG-authorized use only. By using this IS you consent to the
+  following: The USG routinely intercepts and monitors communications on this
+  IS. At any time, the USG may inspect and seize data stored on this IS.
+  Communications using, or data stored on, this IS are not private and are
+  subject to routine monitoring, interception, and search.
+
+# ── AAA / TACACS+  (NIST: IA-2, AC-3, AU-12 | STIG: V-220143–V-220145) ─────
+tacacs_server_name:    "TACACS-PRIMARY"
+tacacs_server_ip:      "10.0.0.10"
+tacacs_server_port:    49
+tacacs_shared_key:     "CHANGEME_TACACS"   # Store in Ansible Vault
+aaa_authen_login_list: "AAA-AUTHEN"
+aaa_author_exec_list:  "AAA-AUTHOR"
+aaa_acct_exec_list:    "AAA-ACCT"
+
+# ── Logging / Syslog  (NIST: AU-2, AU-9 | STIG: V-220146) ───────────────────
+syslog_server:           "10.0.0.20"
+syslog_source_interface: "Loopback0"
+syslog_severity:         "informational"
+logging_buffered_size:   65536
+
+# ── NTP  (NIST: AU-8 | STIG: V-220147) ──────────────────────────────────────
+ntp_server_primary:    "10.0.0.30"
+ntp_server_secondary:  "10.0.0.31"
+ntp_auth_key_id:       1
+ntp_auth_key_value:    "CHANGEME_NTP"      # Store in Ansible Vault
+ntp_source_interface:  "Loopback0"
+
+# ── SNMPv3  (NIST: SC-8, IA-2 | STIG: V-220148) ─────────────────────────────
+snmp_group_name:    "SNMP-V3-RO"
+snmp_user_name:     "snmpv3user"
+snmp_auth_protocol: "sha"                  # sha | sha256 — never md5
+snmp_auth_password: "CHANGEME_AUTH"        # Store in Ansible Vault
+snmp_priv_protocol: "aes 128"
+snmp_priv_password: "CHANGEME_PRIV"        # Store in Ansible Vault
+snmp_contact:       "noc@example.gov"
+snmp_location:      "DC1-RACK-A1"
+
+# ── Enable Secret  (NIST: IA-5 | STIG: V-220141, V-220154) ──────────────────
+enable_secret: "CHANGEME_ENABLE"           # Store in Ansible Vault
+
+# ── Disabled Services  (NIST: CM-7 | STIG: V-220149, V-220155) ──────────────
+disable_http_server:      true
+disable_cdp_globally:     false
+disable_ip_source_route:  true
+disable_ip_proxy_arp:     true
+disable_ip_redirects:     true
+disable_ip_unreachables:  true

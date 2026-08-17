@@ -1,0 +1,224 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# STIG Hardening – Cisco Catalyst 9800 WLC (IOS-XE)
+#
+# Hardens a 9800 controller against the DISA IOS-XE NDM STIG.
+# Every task cites its STIG Vuln ID and NIST SP 800-53 Rev 5 control.
+#
+# Requires:
+#   ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/stig_harden_9800.yml -e @vars/stig_defaults.yml
+#
+#     Dry-run (check mode — no changes applied):
+#     ansible-playbook ... --check --diff
+#
+#   Windows – requires WSL 2 (no native Ansible control node on Windows)
+#     # One-time setup (PowerShell as Administrator):
+#     wsl --install
+#     # Then from the WSL shell:
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/stig_harden_9800.yml -e @vars/stig_defaults.yml
+#
+#   Windows – alternative: Docker container (no WSL required)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#   Vault-encrypted secrets (recommended for all environments):
+#     ansible-vault encrypt_string 'MySecret' --name tacacs_shared_key
+#     ansible-playbook ... --ask-vault-pass
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: STIG Hardening – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/stig_defaults.yml
+
+  tasks:
+
+    # ── SSH Hardening ──────────────────────────────────────────────────────────
+    # STIG: V-220151 | NIST: SC-8 – Enforce SSHv2; disable SSHv1 and telnet
+    - name: Enforce SSHv2
+      cisco.ios.ios_config:
+        lines:
+          - "ip ssh version {{ ssh_version }}"
+          - "ip ssh time-out {{ ssh_timeout }}"
+          - "ip ssh authentication-retries {{ ssh_auth_retries }}"
+
+    # STIG: V-220155 | NIST: CM-7 – Disable telnet on all VTY lines
+    - name: Restrict VTY transport to SSH only
+      cisco.ios.ios_config:
+        lines:
+          - "transport input ssh"
+          - "transport output none"
+          - "login authentication {{ aaa_authen_login_list }}"
+        parents: "line vty 0 15"
+
+    # STIG: V-220153 | NIST: AC-11 – Enforce exec timeout on VTY and console
+    - name: Set VTY exec timeout
+      cisco.ios.ios_config:
+        lines:
+          - "exec-timeout {{ exec_timeout_minutes }} {{ exec_timeout_seconds }}"
+        parents: "line vty 0 15"
+
+    - name: Set console exec timeout
+      cisco.ios.ios_config:
+        lines:
+          - "exec-timeout {{ exec_timeout_minutes }} {{ exec_timeout_seconds }}"
+        parents: "line con 0"
+
+    # ── DoD Login Banner ───────────────────────────────────────────────────────
+    # STIG: V-220142 | NIST: AC-8 – Display DoD notice and consent banner
+    - name: Configure DoD login banner
+      cisco.ios.ios_config:
+        lines:
+          - "banner login ^{{ login_banner }}^"
+
+    # ── AAA / TACACS+ ──────────────────────────────────────────────────────────
+    # STIG: V-220143 | NIST: IA-2 – Centralized authentication via TACACS+
+    - name: Configure TACACS+ server
+      cisco.ios.ios_config:
+        lines:
+          - "tacacs server {{ tacacs_server_name }}"
+          - " address ipv4 {{ tacacs_server_ip }} port {{ tacacs_server_port }}"
+          - " key {{ tacacs_shared_key }}"
+
+    # STIG: V-220143 | NIST: IA-2 – Enable AAA and enforce TACACS+ for login
+    - name: Enable AAA and configure authentication method list
+      cisco.ios.ios_config:
+        lines:
+          - "aaa new-model"
+          - "aaa authentication login {{ aaa_authen_login_list }} group tacacs+ local"
+          - "aaa authentication enable default group tacacs+ enable"
+
+    # STIG: V-220144 | NIST: AC-3 – Enforce authorization for exec sessions
+    - name: Configure AAA exec authorization
+      cisco.ios.ios_config:
+        lines:
+          - "aaa authorization exec {{ aaa_author_exec_list }} group tacacs+ local"
+          - "aaa authorization commands 15 default group tacacs+ local"
+
+    # STIG: V-220145 | NIST: AU-12 – Enforce accounting for exec and commands
+    - name: Configure AAA accounting
+      cisco.ios.ios_config:
+        lines:
+          - "aaa accounting exec {{ aaa_acct_exec_list }} start-stop group tacacs+"
+          - "aaa accounting commands 15 default start-stop group tacacs+"
+
+    # ── Logging / Syslog ───────────────────────────────────────────────────────
+    # STIG: V-220146 | NIST: AU-2, AU-9 – Remote syslog with timestamp and source
+    - name: Configure syslog
+      cisco.ios.ios_config:
+        lines:
+          - "logging host {{ syslog_server }}"
+          - "logging source-interface {{ syslog_source_interface }}"
+          - "logging trap {{ syslog_severity }}"
+          - "logging buffered {{ logging_buffered_size }} debugging"
+          - "service timestamps log datetime msec localtime show-timezone"
+          - "service timestamps debug datetime msec localtime show-timezone"
+
+    # ── NTP ────────────────────────────────────────────────────────────────────
+    # STIG: V-220147 | NIST: AU-8 – Authenticated NTP from authoritative source
+    - name: Configure authenticated NTP
+      cisco.ios.ios_config:
+        lines:
+          - "ntp authentication-key {{ ntp_auth_key_id }} md5 {{ ntp_auth_key_value }}"
+          - "ntp authenticate"
+          - "ntp trusted-key {{ ntp_auth_key_id }}"
+          - "ntp source {{ ntp_source_interface }}"
+          - "ntp server {{ ntp_server_primary }} key {{ ntp_auth_key_id }} prefer"
+          - "ntp server {{ ntp_server_secondary }} key {{ ntp_auth_key_id }}"
+
+    # ── SNMPv3 ─────────────────────────────────────────────────────────────────
+    # STIG: V-220148 | NIST: SC-8, IA-2 – Disable v1/v2c; enforce v3 authPriv
+    - name: Remove SNMPv1 and SNMPv2c community strings
+      cisco.ios.ios_config:
+        lines:
+          - "no snmp-server community public"
+          - "no snmp-server community private"
+
+    - name: Configure SNMPv3 group (authPriv)
+      cisco.ios.ios_config:
+        lines:
+          - "snmp-server group {{ snmp_group_name }} v3 priv"
+
+    - name: Configure SNMPv3 user
+      cisco.ios.ios_config:
+        lines:
+          - "snmp-server user {{ snmp_user_name }} {{ snmp_group_name }} v3 auth {{ snmp_auth_protocol }} {{ snmp_auth_password }} priv {{ snmp_priv_protocol }} {{ snmp_priv_password }}"
+
+    - name: Set SNMP contact and location
+      cisco.ios.ios_config:
+        lines:
+          - "snmp-server contact {{ snmp_contact }}"
+          - "snmp-server location {{ snmp_location }}"
+
+    # ── Enable Secret  ─────────────────────────────────────────────────────────
+    # STIG: V-220141, V-220154 | NIST: IA-5 – Type 9 (scrypt) enable secret
+    - name: Set enable secret (type 9 scrypt)
+      cisco.ios.ios_config:
+        lines:
+          - "enable algorithm-type scrypt secret {{ enable_secret }}"
+          - "service password-encryption"
+
+    # ── Disabled Services ──────────────────────────────────────────────────────
+    # STIG: V-220149 | NIST: CM-7 – Disable HTTP server (use HTTPS or SSH only)
+    - name: Disable HTTP server
+      cisco.ios.ios_config:
+        lines:
+          - "no ip http server"
+      when: disable_http_server | bool
+
+    # STIG: V-220155 | NIST: CM-7 – Disable unnecessary IP services
+    - name: Disable unnecessary IP services
+      cisco.ios.ios_config:
+        lines:
+          - "no ip source-route"
+          - "no ip proxy-arp"
+
+    - name: Disable IP redirects and unreachables on all interfaces
+      cisco.ios.ios_config:
+        lines:
+          - "no ip redirects"
+          - "no ip unreachables"
+        parents: "interface {{ item }}"
+      loop: "{{ ansible_net_interfaces | default({}) | list }}"
+      when: ansible_net_interfaces is defined
+
+    # ── Verify ─────────────────────────────────────────────────────────────────
+    - name: Show SSH configuration
+      cisco.ios.ios_command:
+        commands:
+          - "show ip ssh"
+      register: ssh_status
+
+    - name: Show AAA configuration summary
+      cisco.ios.ios_command:
+        commands:
+          - "show aaa servers"
+      register: aaa_status
+
+    - name: Assert SSHv2 is active
+      ansible.builtin.assert:
+        that:
+          - "'SSH Enabled' in ssh_status.stdout[0]"
+          - "'version 2' in ssh_status.stdout[0]"
+        fail_msg: "SSHv2 is not active — review controller configuration"
+        success_msg: "SSHv2 confirmed active"
