@@ -1,0 +1,95 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# Site Tag Automation – Cisco Catalyst 9800 WLC
+#
+# Creates site tags and binds AP profiles to logical sites. Supports both
+# central switching and FlexConnect (local site) deployments. Iterates
+# over the site_tags list so a single playbook run provisions all sites.
+#
+# Requires:
+#   ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_9800.yml -e @vars/site_tag_defaults.yml
+#
+#     Dry-run: ansible-playbook ... --check --diff
+#
+#   Windows – WSL 2 (no native Ansible control node on Windows)
+#     wsl --install                   # PowerShell as Administrator, one-time
+#     pip install ansible             # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_9800.yml -e @vars/site_tag_defaults.yml
+#
+#   Windows – Docker (no WSL required)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Site Tag Automation – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/site_tag_defaults.yml
+
+  tasks:
+
+    # ── Create site tags ──────────────────────────────────────────────────────
+    - name: Create site tag (central switching)
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " no local-site"
+      loop: "{{ site_tags }}"
+      when: not item.local_site | bool
+
+    - name: Create site tag (local site — FlexConnect)
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " local-site"
+      loop: "{{ site_tags }}"
+      when: item.local_site | bool and (item.flex_profile is not defined or item.flex_profile == '')
+
+    - name: Create site tag (local site — FlexConnect with flex profile)
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " local-site"
+          - " flex-profile {{ item.flex_profile }}"
+      loop: "{{ site_tags }}"
+      when: item.local_site | bool and item.flex_profile is defined and item.flex_profile != ''
+
+    # ── Verify ────────────────────────────────────────────────────────────────
+    - name: Show site tag summary
+      cisco.ios.ios_command:
+        commands:
+          - "show wireless tag site summary"
+      register: site_tag_status
+
+    - name: Assert each site tag was created
+      ansible.builtin.assert:
+        that:
+          - "item.name in site_tag_status.stdout[0]"
+        fail_msg: "Site tag '{{ item.name }}' not found after provisioning"
+        success_msg: "Site tag '{{ item.name }}' confirmed"
+      loop: "{{ site_tags }}"

@@ -1,0 +1,51 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# Site Tag Defaults – Cisco Catalyst 9800 WLC
+#
+# Site tags bind an AP profile, RF tag, and policy tag to a logical site.
+# Every AP must have a site tag assigned; this template creates the tag
+# and associates the correct profiles.
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_9800.yml -e @vars/site_tag_defaults.yml
+#
+#   Windows (WSL 2)
+#     wsl --install && pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_9800.yml -e @vars/site_tag_defaults.yml
+#
+#   Dry-run: ansible-playbook ... --check --diff
+# =============================================================================
+
+# ── Site tag list ─────────────────────────────────────────────────────────────
+# Each entry creates one site tag with its associated profiles.
+# Add additional entries to build out your full site map.
+site_tags:
+  - name:             "Site-HQ"
+    description:      "Headquarters — NaC managed"
+    ap_profile:       "AP-Join-Standard"
+    local_site:       true    # true = local switching (FlexConnect); false = central
+    flex_profile:     ""      # leave blank for central switching deployments
+
+  - name:             "Site-Branch-01"
+    description:      "Branch Office 01 — NaC managed"
+    ap_profile:       "AP-Join-Standard"
+    local_site:       true
+    flex_profile:     "Flex-Branch"
+
+  - name:             "Site-Branch-02"
+    description:      "Branch Office 02 — NaC managed"
+    ap_profile:       "AP-Join-Standard"
+    local_site:       true
+    flex_profile:     "Flex-Branch"
