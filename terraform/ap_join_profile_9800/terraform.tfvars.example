@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars — never commit to SCM.
+wlc_host                   = "192.168.1.1"
+wlc_username               = "admin"
+wlc_password               = "CHANGEME"   # use TF_VAR_wlc_password
+
+ap_join_profile_name        = "AP-Join-Standard"
+ap_syslog_host              = "10.0.0.20"
+ap_ntp_server               = "10.0.0.30"
+ap_capwap_echo_interval     = 30
+ap_tcp_mss_value            = 1250
+ap_led_state                = true
