@@ -1,0 +1,50 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# AP Join Profile Defaults – Cisco Catalyst 9800 WLC
+#
+# Controls how APs establish and maintain their CAPWAP tunnel to the 9800.
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/ap_join_profile_9800.yml -e @vars/ap_join_profile_defaults.yml
+#
+#   Windows (WSL 2)
+#     wsl --install && pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/ap_join_profile_9800.yml -e @vars/ap_join_profile_defaults.yml
+#
+#   Dry-run: ansible-playbook ... --check --diff
+# =============================================================================
+
+ap_join_profile_name:        "AP-Join-Standard"
+ap_join_profile_description: "Standard AP join profile — NaC managed"
+
+ap_ssh_enabled:              true
+ap_telnet_enabled:           false
+ap_username:                 "apuser"
+ap_password:                 "CHANGEME_AP"   # Store in Ansible Vault
+
+ap_syslog_host:              "10.0.0.20"
+ap_syslog_level:             "warnings"
+
+ap_ntp_server:               "10.0.0.30"
+
+ap_capwap_discovery_timeout: 10
+ap_capwap_echo_interval:     30
+ap_capwap_fast_heartbeat:    true
+
+ap_led_state:                true
+ap_tcp_mss_adjust:           true
+ap_tcp_mss_value:            1250
+ap_stats_timer:              180
+ap_core_dump_enabled:        false

@@ -1,0 +1,151 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# AP Join Profile – Cisco Catalyst 9800 WLC
+#
+# Creates and configures an AP join profile controlling CAPWAP timers,
+# AP management access (SSH only), syslog, NTP, LED state, and TCP MSS.
+#
+# Requires:
+#   ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/ap_join_profile_9800.yml -e @vars/ap_join_profile_defaults.yml
+#
+#     Dry-run: ansible-playbook ... --check --diff
+#
+#   Windows – WSL 2 (no native Ansible control node on Windows)
+#     wsl --install                   # PowerShell as Administrator, one-time
+#     pip install ansible             # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/ap_join_profile_9800.yml -e @vars/ap_join_profile_defaults.yml
+#
+#   Windows – Docker (no WSL required)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: AP Join Profile – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/ap_join_profile_defaults.yml
+
+  tasks:
+
+    # ── Create AP join profile ────────────────────────────────────────────────
+    - name: Create AP join profile
+      cisco.ios.ios_config:
+        lines:
+          - "ap profile {{ ap_join_profile_name }}"
+          - " description {{ ap_join_profile_description }}"
+
+    # ── AP management access — SSH only, telnet disabled ─────────────────────
+    - name: Configure AP SSH credentials
+      cisco.ios.ios_config:
+        lines:
+          - " mgmtuser username {{ ap_username }} password 0 {{ ap_password }} secret 0 {{ ap_password }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: ap_ssh_enabled | bool
+
+    - name: Disable AP telnet
+      cisco.ios.ios_config:
+        lines:
+          - " no telnet"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: not ap_telnet_enabled | bool
+
+    # ── AP syslog ─────────────────────────────────────────────────────────────
+    - name: Configure AP syslog destination
+      cisco.ios.ios_config:
+        lines:
+          - " syslog host {{ ap_syslog_host }}"
+          - " syslog level {{ ap_syslog_level }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+
+    # ── AP NTP ────────────────────────────────────────────────────────────────
+    - name: Configure AP NTP server
+      cisco.ios.ios_config:
+        lines:
+          - " ntp server {{ ap_ntp_server }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+
+    # ── CAPWAP timers ─────────────────────────────────────────────────────────
+    - name: Configure CAPWAP discovery and echo timers
+      cisco.ios.ios_config:
+        lines:
+          - " capwap timers discovery-timeout {{ ap_capwap_discovery_timeout }}"
+          - " capwap timers echo-interval {{ ap_capwap_echo_interval }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+
+    - name: Enable CAPWAP fast heartbeat
+      cisco.ios.ios_config:
+        lines:
+          - " capwap timers fast-heartbeat-timeout"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: ap_capwap_fast_heartbeat | bool
+
+    # ── TCP MSS clamping ─────────────────────────────────────────────────────
+    - name: Configure TCP MSS adjust
+      cisco.ios.ios_config:
+        lines:
+          - " tcp adjust-mss {{ ap_tcp_mss_value }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: ap_tcp_mss_adjust | bool
+
+    # ── LED state ─────────────────────────────────────────────────────────────
+    - name: Configure AP LED state
+      cisco.ios.ios_config:
+        lines:
+          - " led"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: ap_led_state | bool
+
+    - name: Disable AP LED
+      cisco.ios.ios_config:
+        lines:
+          - " no led"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: not ap_led_state | bool
+
+    # ── Statistics timer ─────────────────────────────────────────────────────
+    - name: Configure AP stats reporting timer
+      cisco.ios.ios_config:
+        lines:
+          - " stats-timer {{ ap_stats_timer }}"
+        parents: "ap profile {{ ap_join_profile_name }}"
+
+    # ── Core dump ────────────────────────────────────────────────────────────
+    - name: Disable AP core dump upload
+      cisco.ios.ios_config:
+        lines:
+          - " no core-dump"
+        parents: "ap profile {{ ap_join_profile_name }}"
+      when: not ap_core_dump_enabled | bool
+
+    # ── Verify ────────────────────────────────────────────────────────────────
+    - name: Show AP join profile summary
+      cisco.ios.ios_command:
+        commands:
+          - "show ap profile {{ ap_join_profile_name }} detailed"
+      register: ap_profile_status
+
+    - name: Assert AP join profile exists
+      ansible.builtin.assert:
+        that:
+          - "ap_join_profile_name in ap_profile_status.stdout[0]"
+        fail_msg: "AP join profile '{{ ap_join_profile_name }}' not found"
+        success_msg: "AP join profile '{{ ap_join_profile_name }}' confirmed"
