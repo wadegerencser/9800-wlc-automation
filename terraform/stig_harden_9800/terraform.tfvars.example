@@ -1,0 +1,48 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+#
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to source control.
+# Add terraform.tfvars to your .gitignore.
+#
+# Preferred: pass secrets as environment variables instead:
+#   export TF_VAR_wlc_password="..."
+#   export TF_VAR_tacacs_shared_key="..."
+#   export TF_VAR_snmp_auth_password="..."
+#   export TF_VAR_snmp_priv_password="..."
+#   export TF_VAR_enable_secret="..."
+#   export TF_VAR_ntp_auth_key_value="..."
+# =============================================================================
+
+wlc_host     = "192.168.1.1"
+wlc_username = "admin"
+wlc_password = "CHANGEME"          # Use TF_VAR_wlc_password instead
+
+tacacs_server_ip   = "10.0.0.10"
+tacacs_shared_key  = "CHANGEME"    # Use TF_VAR_tacacs_shared_key instead
+
+syslog_server_ip        = "10.0.0.20"
+syslog_source_interface = "Loopback0"
+
+ntp_server_primary    = "10.0.0.30"
+ntp_server_secondary  = "10.0.0.31"
+ntp_auth_key_id       = 1
+ntp_auth_key_value    = "CHANGEME"  # Use TF_VAR_ntp_auth_key_value instead
+
+snmp_user_name     = "snmpv3user"
+snmp_auth_protocol = "sha"
+snmp_auth_password = "CHANGEME"    # Use TF_VAR_snmp_auth_password instead
+snmp_priv_password = "CHANGEME"    # Use TF_VAR_snmp_priv_password instead
+snmp_contact       = "noc@example.gov"
+snmp_location      = "DC1-RACK-A1"
+
+enable_secret     = "CHANGEME"     # Use TF_VAR_enable_secret instead
+
+ssh_timeout           = 60
+ssh_auth_retries      = 3
+exec_timeout_minutes  = 10
