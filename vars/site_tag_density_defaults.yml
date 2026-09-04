@@ -67,7 +67,7 @@ density_site_tags:
   # spread-out campus buildings with few users per AP.
   # 6 GHz: LPI 80 MHz, 12 Mbps minimum, no TWT, PSC channels.
   - name:               "Site-Low-Density"
-    description:        "Low-density site — warehouse / lobby / sparse office"
+    description:        "Low-density site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         false        # false = central switching (default)
     flex_profile:       ""
@@ -82,7 +82,7 @@ density_site_tags:
 
   # Low-density FlexConnect variant (branch office, remote site)
   - name:               "Site-Low-Density-Flex"
-    description:        "Low-density FlexConnect — remote branch / warehouse"
+    description:        "Low-density FlexConnect site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         true         # local switching — FlexConnect
     flex_profile:       "Flex-Branch"
@@ -98,7 +98,7 @@ density_site_tags:
   # government buildings, retail, healthcare wards.
   # 6 GHz: LPI 80 MHz, 24 Mbps min, TWT enabled, BSS Color.
   - name:               "Site-Typical-Density"
-    description:        "Typical-density site — office / K-12 / campus building"
+    description:        "Typical-density site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         false
     flex_profile:       ""
@@ -114,7 +114,7 @@ density_site_tags:
 
   # Typical-density FlexConnect (regional office, clinic)
   - name:               "Site-Typical-Density-Flex"
-    description:        "Typical-density FlexConnect — regional office / clinic"
+    description:        "Typical-density FlexConnect site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         true
     flex_profile:       "Flex-Branch"
@@ -130,7 +130,7 @@ density_site_tags:
   # 6 GHz: LPI 80/160 MHz, 24 Mbps min, aggressive BSS Color + TWT + OFDMA.
   # 2.4 GHz: legacy fallback only — tight TX power, 12 Mbps mandatory.
   - name:               "Site-High-Density"
-    description:        "High-density site — transit / stadium / auditorium"
+    description:        "High-density site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         false
     flex_profile:       ""
@@ -151,7 +151,7 @@ density_site_tags:
 
   # High-density central — same RF, explicit central switching
   - name:               "Site-High-Density-Central"
-    description:        "High-density central-switch — campus core / data center adjacent"
+    description:        "High-density central-switch site — NaC managed"
     ap_profile:         "AP-Join-Standard"
     local_site:         false
     flex_profile:       ""

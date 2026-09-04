@@ -84,7 +84,7 @@
 
 # ── Low: 2.4 GHz RF Profile ──────────────────────────────────────────────────
 rf_low_24ghz_name:        "RF-2.4GHz-Low-Density"
-rf_low_24ghz_description: "2.4 GHz — low-density, max coverage"
+rf_low_24ghz_description: "2.4 GHz low-density RF profile — NaC managed"
 
 rf_low_24_min_tx_power:   7     # dBm — allow APs to run higher for range
 rf_low_24_max_tx_power:   20
@@ -114,7 +114,7 @@ rf_low_24_band_select_age_timeout:    60    # seconds
 
 # ── Low: 5 GHz RF Profile ────────────────────────────────────────────────────
 rf_low_5ghz_name:         "RF-5GHz-Low-Density"
-rf_low_5ghz_description:  "5 GHz — low-density, 80 MHz channel width"
+rf_low_5ghz_description:  "5 GHz low-density RF profile — NaC managed"
 
 rf_low_5_min_tx_power:    8
 rf_low_5_max_tx_power:    20
@@ -141,7 +141,7 @@ rf_low_5_coverage_min_rssi:  -82
 # Preferred Scanning Channels (PSC): 5,21,37,53,69,85 (20 MHz spacing × 6)
 # No CCK/DSSS; all clients on this band are 802.11ax or 802.11be minimum.
 rf_low_6ghz_name:         "RF-6GHz-Low-Density"
-rf_low_6ghz_description:  "6 GHz — low-density, Wi-Fi 6E LPI, 80 MHz"
+rf_low_6ghz_description:  "6 GHz low-density RF profile — NaC managed"
 
 rf_low_6_min_tx_power:    5     # dBm — LPI floor
 rf_low_6_max_tx_power:    23    # dBm — LPI ceiling (5 dBm/MHz × 80 MHz = ~24 dBm EIRP)
@@ -189,7 +189,7 @@ rf_low_6_dot11v_enabled:        true   # 802.11v BSS Transition Mgmt
 
 # ── Typical: 2.4 GHz RF Profile ──────────────────────────────────────────────
 rf_typical_24ghz_name:        "RF-2.4GHz-Typical-Density"
-rf_typical_24ghz_description: "2.4 GHz — typical-density, band-steer to 5/6 GHz"
+rf_typical_24ghz_description: "2.4 GHz typical-density RF profile — NaC managed"
 
 rf_typical_24_min_tx_power:   7
 rf_typical_24_max_tx_power:   17
@@ -217,7 +217,7 @@ rf_typical_24_band_select_age_timeout:    40
 
 # ── Typical: 5 GHz RF Profile ────────────────────────────────────────────────
 rf_typical_5ghz_name:         "RF-5GHz-Typical-Density"
-rf_typical_5ghz_description:  "5 GHz — typical-density, 80 MHz, 802.11r/k/v roaming"
+rf_typical_5ghz_description:  "5 GHz typical-density RF profile — NaC managed"
 
 rf_typical_5_min_tx_power:    8
 rf_typical_5_max_tx_power:    17
@@ -242,7 +242,7 @@ rf_typical_5_coverage_min_rssi:  -80
 # Android 12+ / iOS 16+ / Windows 11 22H2+ clients fully Wi-Fi 6E capable.
 # Tablets (iPadOS 16+ on M1/M2, Samsung Tab S8+) also 6E capable.
 rf_typical_6ghz_name:         "RF-6GHz-Typical-Density"
-rf_typical_6ghz_description:  "6 GHz — typical-density, Wi-Fi 6E LPI, BSS color + TWT"
+rf_typical_6ghz_description:  "6 GHz typical-density RF profile — NaC managed"
 
 rf_typical_6_min_tx_power:    5
 rf_typical_6_max_tx_power:    20
@@ -291,7 +291,7 @@ rf_typical_6_dot11v_enabled:       true
 # legacy-capable-only clients to at least connect at a usable rate. Band-steer
 # anything that supports 5 or 6 GHz away from this band immediately.
 rf_high_24ghz_name:        "RF-2.4GHz-High-Density"
-rf_high_24ghz_description: "2.4 GHz — high-density, legacy fallback only"
+rf_high_24ghz_description: "2.4 GHz high-density RF profile — NaC managed"
 
 rf_high_24_min_tx_power:   5     # dBm — intentionally low to shrink cell
 rf_high_24_max_tx_power:   14    # dBm — tight cells reduce co-channel interference
@@ -322,7 +322,7 @@ rf_high_24_band_select_age_timeout:    20
 # Raise mandatory rate floor to 24 Mbps — eliminates slow retransmit storms.
 # RX-SOP set high so APs don't associate far-away clients that belong elsewhere.
 rf_high_5ghz_name:         "RF-5GHz-High-Density"
-rf_high_5ghz_description:  "5 GHz — high-density, 40 MHz, 24 Mbps min, strict RX-SOP"
+rf_high_5ghz_description:  "5 GHz high-density RF profile — NaC managed"
 
 rf_high_5_min_tx_power:    5     # dBm
 rf_high_5_max_tx_power:    14    # dBm — tight cells, high reuse
@@ -367,7 +367,7 @@ rf_high_5_coverage_min_rssi:  -75
 #
 # MU-MIMO: simultaneous spatial streams to multiple clients per AP.
 rf_high_6ghz_name:         "RF-6GHz-High-Density"
-rf_high_6ghz_description:  "6 GHz — high-density, Wi-Fi 6E LPI, 80/160 MHz, PSD-aware"
+rf_high_6ghz_description:  "6 GHz high-density RF profile — NaC managed"
 
 rf_high_6_min_tx_power:    3     # dBm — tightest cells, LPI compliant
 rf_high_6_max_tx_power:    17    # dBm — constrained for dense AP grid
@@ -416,19 +416,19 @@ rf_high_6_okc_enabled:          true     # Opportunistic Key Caching for fast re
 
 rf_tags:
   - name:             "RF-Tag-Low-Density"
-    description:      "RF tag — low-density sites (warehouses, sparse offices)"
+    description:      "Low-density RF tag — NaC managed"
     rf_profile_24ghz: "RF-2.4GHz-Low-Density"
     rf_profile_5ghz:  "RF-5GHz-Low-Density"
     rf_profile_6ghz:  "RF-6GHz-Low-Density"
 
   - name:             "RF-Tag-Typical-Density"
-    description:      "RF tag — typical-density sites (offices, K-12, campus)"
+    description:      "Typical-density RF tag — NaC managed"
     rf_profile_24ghz: "RF-2.4GHz-Typical-Density"
     rf_profile_5ghz:  "RF-5GHz-Typical-Density"
     rf_profile_6ghz:  "RF-6GHz-Typical-Density"
 
   - name:             "RF-Tag-High-Density"
-    description:      "RF tag — high-density sites (stadiums, transit, auditoriums)"
+    description:      "High-density RF tag — NaC managed"
     rf_profile_24ghz: "RF-2.4GHz-High-Density"
     rf_profile_5ghz:  "RF-5GHz-High-Density"
     rf_profile_6ghz:  "RF-6GHz-High-Density"
