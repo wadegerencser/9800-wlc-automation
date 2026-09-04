@@ -1,0 +1,16 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# =============================================================================
+# Python dependencies for NETCONF scripts and documentation build.
+# Install: pip install -r requirements.txt
+
+# ── NETCONF / Ansible ─────────────────────────────────────────────────────────
+ansible>=9.0
+ncclient>=0.6.15
+pyyaml>=6.0
+
+# ── Docs build (MkDocs + Material theme) ─────────────────────────────────────
+mkdocs>=1.6
+mkdocs-material>=9.5
+pymdown-extensions>=10.0

@@ -1,0 +1,64 @@
+site_name: "9800 WLC Automation"
+site_description: "Cisco CX US Public Sector — Catalyst 9800 WLC Network as Code templates"
+site_author: "Wade Gerencser (mgerencs) · CX US Public Sector"
+repo_url: "https://wwwin-github.cisco.com/mgerencs/sac-mgerencs-9800-wlc-automation"
+repo_name: "sac-mgerencs-9800-wlc-automation"
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Overview: getting-started/overview.md
+    - Prerequisites: getting-started/prerequisites.md
+  - Playbooks:
+    - RF Profile Hardening: playbooks/rf-profile-hardening.md
+    - RF Profile Density: playbooks/rf-profile-density.md
+    - Site Tags: playbooks/site-tags.md
+    - Site Tags Density: playbooks/site-tags-density.md
+    - AP Join Profile: playbooks/ap-join-profile.md
+    - STIG Hardening: playbooks/stig-hardening.md
+    - WPA3 SSID: playbooks/wpa3-ssid.md
+  - Variables:
+    - RF Profile Defaults: vars/rf-profile-defaults.md
+    - RF Profile Density: vars/rf-profile-density.md
+    - Site Tag Defaults: vars/site-tag-defaults.md
+    - Site Tag Density: vars/site-tag-density.md
+  - Terraform:
+    - Site Tag Module: terraform/site-tag.md
+    - Site Tag Density Module: terraform/site-tag-density.md
+    - RF Profile Module: terraform/rf-profile.md
+  - NETCONF:
+    - Site Tag: netconf/site-tag.md
+    - RF Profile Density: netconf/rf-profile-density.md
+  - Inventory: inventory.md
