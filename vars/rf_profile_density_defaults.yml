@@ -1,0 +1,434 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# RF Profile Density Defaults – Cisco Catalyst 9800 WLC
+#
+# Three density tiers × three bands (2.4 / 5 / 6 GHz).
+# Each tier configures data rates, TX power, RRM, roaming thresholds,
+# and 6 GHz PSD/TWT/OFDMA settings appropriate for its client population.
+#
+# Density tiers:
+#   low     — sparse offices, warehouses, auditoriums at rest      (<25 clients/radio)
+#   typical — standard office, K-12, government campus            (25–75 clients/radio)
+#   high    — transit hubs, stadiums, dense classrooms, arenas   (>75 clients/radio)
+#
+# Device population (informs roaming + rate targets):
+#   Laptops (macOS / Windows / Linux), NPCs, tablets (Android/iPadOS/iOS),
+#   smartphones (Android / iOS), IoT endpoints.
+#   High-density tiers assume mixed 802.11ax (Wi-Fi 6/6E) + 802.11be (Wi-Fi 7)
+#   clients; legacy 802.11ac clients are served but deprioritized.
+#
+# 6 GHz Power Spectral Density (PSD) reference — FCC Part 15 Subpart E:
+#   LPI  (Low Power Indoor)  : max 5 dBm/MHz PSD,  30 dBm max EIRP — no AFC needed
+#   SP   (Standard Power)    : max 23 dBm/MHz PSD, 36 dBm max EIRP — AFC required
+#   VLP  (Very Low Power)    : max −5 dBm/MHz PSD, 14 dBm max EIRP — wearables/IoT
+#
+#   Catalyst 9166/9172/9178 ship in LPI mode; SP requires AFC license + outdoor AP.
+#   TX power values below are for LPI deployment unless noted.
+#
+# Roaming best practices woven in per tier:
+#   • 802.11r (FT)  — fast BSS transition, pre-shared key cache across APs
+#   • 802.11k (RRM) — neighbor reports guide client to best AP before deauth
+#   • 802.11v (BTM) — BSS Transition Mgmt steers sticky clients proactively
+#   Trigger RSSI thresholds tighten as density increases.
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native Ansible control node)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_density_9800.yml \
+#       -e @vars/rf_profile_density_defaults.yml \
+#       -e "density=typical"   # low | typical | high
+#
+#   Windows – WSL 2 (no native Ansible on Windows)
+#     wsl --install              # PowerShell as Administrator, one-time
+#     pip install ansible        # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_density_9800.yml \
+#       -e @vars/rf_profile_density_defaults.yml \
+#       -e "density=typical"
+#
+#   Windows – Docker (no WSL)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#   Android / iOS / iPadOS (SSH client → jump host running Ansible)
+#     Use Termius or Blink Shell → SSH to Linux jump host → run above commands.
+#     No native Ansible app; control node must be macOS/Linux.
+#
+#   NPC / tablet browser (AWX / AAP)
+#     Import this repo into Ansible Automation Platform or AWX.
+#     Create a Job Template targeting these vars; run from any browser.
+#
+#   Terraform alternative (all platforms via binary):
+#     See terraform/site_tag_density_9800/ — runs natively on
+#     macOS, Windows, Linux with no Python dependency.
+#
+#   Dry-run: ansible-playbook ... --check --diff
+# =============================================================================
+
+
+# =============================================================================
+# ── LOW DENSITY ──────────────────────────────────────────────────────────────
+# Sparse occupancy: warehouses, lobbies, parking garages, spread-out offices.
+# Priority: coverage range over capacity. Wider channels OK. Fewer restrictions.
+# =============================================================================
+
+# ── Low: 2.4 GHz RF Profile ──────────────────────────────────────────────────
+rf_low_24ghz_name:        "RF-2.4GHz-Low-Density"
+rf_low_24ghz_description: "2.4 GHz — low-density, max coverage"
+
+rf_low_24_min_tx_power:   7     # dBm — allow APs to run higher for range
+rf_low_24_max_tx_power:   20
+rf_low_24_tpc_threshold:  -72
+rf_low_24_rx_sop_threshold: "low"         # low | medium | high | auto
+rf_low_24_max_clients_per_radio: 200
+rf_low_24_max_clients_per_wlan:  50
+
+# Disable 802.11b CCK legacy rates — still allow 11 Mbps DSSS as minimum
+rf_low_24_disable_rates:   ["1", "2", "5.5"]
+rf_low_24_mandatory_rates: ["11"]
+rf_low_24_supported_rates: ["6", "9", "12", "18", "24", "36", "48", "54"]
+
+# DCA — non-overlapping 2.4 GHz channels
+rf_low_24_dca_channels:    [1, 6, 11]
+rf_low_24_dca_interval:    600
+
+# Coverage hole
+rf_low_24_coverage_exception: 25
+rf_low_24_coverage_min_rssi:  -82    # generous for large spaces
+
+# Roaming steering (less aggressive — clients are sparse)
+rf_low_24_band_select_probe_response: true
+rf_low_24_band_select_cycle_count:    2
+rf_low_24_band_select_cycle_threshold: 200  # ms
+rf_low_24_band_select_age_timeout:    60    # seconds
+
+# ── Low: 5 GHz RF Profile ────────────────────────────────────────────────────
+rf_low_5ghz_name:         "RF-5GHz-Low-Density"
+rf_low_5ghz_description:  "5 GHz — low-density, 80 MHz channel width"
+
+rf_low_5_min_tx_power:    8
+rf_low_5_max_tx_power:    20
+rf_low_5_tpc_threshold:   -72
+rf_low_5_rx_sop_threshold: "low"
+rf_low_5_max_clients_per_radio: 200
+rf_low_5_max_clients_per_wlan:  75
+rf_low_5_channel_width:   "80"          # 80 MHz — capacity + range balance
+
+# Disable low-rate OFDM legacy (6 Mbps inherited from 802.11a era)
+rf_low_5_disable_rates:   ["6", "9"]
+rf_low_5_mandatory_rates: ["12"]
+rf_low_5_supported_rates: ["18", "24", "36", "48", "54"]
+
+# DCA — all non-DFS and DFS unii-2/2-extended/3 channels
+rf_low_5_dca_channels:    [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 132, 136, 140, 149, 153, 157, 161, 165]
+rf_low_5_dca_interval:    600
+
+rf_low_5_coverage_exception: 25
+rf_low_5_coverage_min_rssi:  -82
+
+# ── Low: 6 GHz RF Profile ────────────────────────────────────────────────────
+# Wi-Fi 6E / 802.11ax — LPI mode (no AFC required)
+# Preferred Scanning Channels (PSC): 5,21,37,53,69,85 (20 MHz spacing × 6)
+# No CCK/DSSS; all clients on this band are 802.11ax or 802.11be minimum.
+rf_low_6ghz_name:         "RF-6GHz-Low-Density"
+rf_low_6ghz_description:  "6 GHz — low-density, Wi-Fi 6E LPI, 80 MHz"
+
+rf_low_6_min_tx_power:    5     # dBm — LPI floor
+rf_low_6_max_tx_power:    23    # dBm — LPI ceiling (5 dBm/MHz × 80 MHz = ~24 dBm EIRP)
+rf_low_6_tpc_threshold:   -72
+rf_low_6_rx_sop_threshold: "low"
+rf_low_6_max_clients_per_radio: 200
+rf_low_6_max_clients_per_wlan:  75
+rf_low_6_channel_width:   "80"          # 80 MHz — good balance for low density
+rf_low_6_psc_only:        true          # restrict DCA to PSC channels for faster discovery
+
+# 6 GHz data rates: disable lowest OFDM; force clients to 12+ Mbps
+rf_low_6_disable_rates:   ["6", "9"]
+rf_low_6_mandatory_rates: ["12"]
+rf_low_6_supported_rates: ["18", "24", "36", "48", "54"]
+
+# PSD / 802.11ax features — LPI baseline
+rf_low_6_lpi_mode:        true          # Low Power Indoor — no AFC
+rf_low_6_bss_color_enable: true         # BSS Coloring reduces inter-BSS interference
+rf_low_6_twt_broadcast:   false         # TWT not critical for low density
+rf_low_6_ofdma_downlink:  true
+rf_low_6_ofdma_uplink:    true
+rf_low_6_mu_mimo_downlink: true
+rf_low_6_mu_mimo_uplink:  true
+
+# PSC DCA channels (80 MHz): use 15 (ch 15 = 6095 MHz unii-5 80 MHz PSC center)
+# 80 MHz PSC centers: 7, 23, 39, 55, 71, 87 (lower edge PSC × 4)
+rf_low_6_dca_channels:    [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93]
+rf_low_6_dca_interval:    600
+
+rf_low_6_coverage_exception: 25
+rf_low_6_coverage_min_rssi:  -82
+
+# Roaming — relaxed for sparse deployments
+rf_low_6_roaming_rssi_trigger:  -75    # dBm — client roam trigger
+rf_low_6_dot11r_enabled:        true   # 802.11r Fast BSS Transition
+rf_low_6_dot11k_enabled:        true   # 802.11k Neighbor Reports
+rf_low_6_dot11v_enabled:        true   # 802.11v BSS Transition Mgmt
+
+
+# =============================================================================
+# ── TYPICAL DENSITY ───────────────────────────────────────────────────────────
+# Standard occupancy: offices, K-12, government campus buildings, retail.
+# Priority: balance capacity and coverage. Band steering to 5/6 GHz.
+# =============================================================================
+
+# ── Typical: 2.4 GHz RF Profile ──────────────────────────────────────────────
+rf_typical_24ghz_name:        "RF-2.4GHz-Typical-Density"
+rf_typical_24ghz_description: "2.4 GHz — typical-density, band-steer to 5/6 GHz"
+
+rf_typical_24_min_tx_power:   7
+rf_typical_24_max_tx_power:   17
+rf_typical_24_tpc_threshold:  -70
+rf_typical_24_rx_sop_threshold: "medium"
+rf_typical_24_max_clients_per_radio: 200
+rf_typical_24_max_clients_per_wlan:  25
+
+# Remove 802.11b CCK and 6/9 OFDM — keep 11 Mbps as mandatory floor
+rf_typical_24_disable_rates:   ["1", "2", "5.5"]
+rf_typical_24_mandatory_rates: ["11"]
+rf_typical_24_supported_rates: ["6", "9", "12", "18", "24", "36", "48", "54"]
+
+rf_typical_24_dca_channels:    [1, 6, 11]
+rf_typical_24_dca_interval:    600
+
+rf_typical_24_coverage_exception: 25
+rf_typical_24_coverage_min_rssi:  -80
+
+# Band steering — aggressively move dual-band clients off 2.4 GHz
+rf_typical_24_band_select_probe_response: true
+rf_typical_24_band_select_cycle_count:    3
+rf_typical_24_band_select_cycle_threshold: 200
+rf_typical_24_band_select_age_timeout:    40
+
+# ── Typical: 5 GHz RF Profile ────────────────────────────────────────────────
+rf_typical_5ghz_name:         "RF-5GHz-Typical-Density"
+rf_typical_5ghz_description:  "5 GHz — typical-density, 80 MHz, 802.11r/k/v roaming"
+
+rf_typical_5_min_tx_power:    8
+rf_typical_5_max_tx_power:    17
+rf_typical_5_tpc_threshold:   -70
+rf_typical_5_rx_sop_threshold: "medium"
+rf_typical_5_max_clients_per_radio: 200
+rf_typical_5_max_clients_per_wlan:  50
+rf_typical_5_channel_width:   "best"    # let RRM pick between 40/80
+
+rf_typical_5_disable_rates:   ["6", "9"]
+rf_typical_5_mandatory_rates: ["12", "24"]
+rf_typical_5_supported_rates: ["18", "36", "48", "54"]
+
+rf_typical_5_dca_channels:    [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 132, 136, 140, 149, 153, 157, 161, 165]
+rf_typical_5_dca_interval:    600
+
+rf_typical_5_coverage_exception: 25
+rf_typical_5_coverage_min_rssi:  -80
+
+# ── Typical: 6 GHz RF Profile ────────────────────────────────────────────────
+# LPI mode, 80 MHz, BSS coloring + TWT enabled.
+# Android 12+ / iOS 16+ / Windows 11 22H2+ clients fully Wi-Fi 6E capable.
+# Tablets (iPadOS 16+ on M1/M2, Samsung Tab S8+) also 6E capable.
+rf_typical_6ghz_name:         "RF-6GHz-Typical-Density"
+rf_typical_6ghz_description:  "6 GHz — typical-density, Wi-Fi 6E LPI, BSS color + TWT"
+
+rf_typical_6_min_tx_power:    5
+rf_typical_6_max_tx_power:    20
+rf_typical_6_tpc_threshold:   -70
+rf_typical_6_rx_sop_threshold: "medium"
+rf_typical_6_max_clients_per_radio: 200
+rf_typical_6_max_clients_per_wlan:  75
+rf_typical_6_channel_width:   "80"
+rf_typical_6_psc_only:        true
+
+rf_typical_6_disable_rates:   ["6", "9"]
+rf_typical_6_mandatory_rates: ["12", "24"]
+rf_typical_6_supported_rates: ["18", "36", "48", "54"]
+
+rf_typical_6_lpi_mode:        true
+rf_typical_6_bss_color_enable: true
+rf_typical_6_twt_broadcast:   true      # TWT benefits mobile + tablet battery life
+rf_typical_6_ofdma_downlink:  true
+rf_typical_6_ofdma_uplink:    true
+rf_typical_6_mu_mimo_downlink: true
+rf_typical_6_mu_mimo_uplink:  true
+
+rf_typical_6_dca_channels:    [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93]
+rf_typical_6_dca_interval:    600
+
+rf_typical_6_coverage_exception: 25
+rf_typical_6_coverage_min_rssi:  -80
+
+# Roaming — standard enterprise thresholds
+rf_typical_6_roaming_rssi_trigger: -70
+rf_typical_6_dot11r_enabled:       true
+rf_typical_6_dot11k_enabled:       true
+rf_typical_6_dot11v_enabled:       true
+
+
+# =============================================================================
+# ── HIGH DENSITY ─────────────────────────────────────────────────────────────
+# Dense occupancy: transit hubs, stadiums, auditoriums, dense classrooms,
+# conference centers, military operations centers.
+# Priority: capacity and fast roaming. Aggressive rate floors. OFDMA mandatory.
+# 2.4 GHz treated as legacy fallback only — minimize airtime there.
+# =============================================================================
+
+# ── High: 2.4 GHz RF Profile ─────────────────────────────────────────────────
+# Minimize legacy-band airtime. Raise mandatory minimum to 12 Mbps to force
+# legacy-capable-only clients to at least connect at a usable rate. Band-steer
+# anything that supports 5 or 6 GHz away from this band immediately.
+rf_high_24ghz_name:        "RF-2.4GHz-High-Density"
+rf_high_24ghz_description: "2.4 GHz — high-density, legacy fallback only"
+
+rf_high_24_min_tx_power:   5     # dBm — intentionally low to shrink cell
+rf_high_24_max_tx_power:   14    # dBm — tight cells reduce co-channel interference
+rf_high_24_tpc_threshold:  -67
+rf_high_24_rx_sop_threshold: "high"    # aggressively ignore weak signals
+rf_high_24_max_clients_per_radio: 100
+rf_high_24_max_clients_per_wlan:  20
+
+# Disable all legacy CCK + low OFDM; force 12 Mbps minimum
+rf_high_24_disable_rates:   ["1", "2", "5.5", "6", "9"]
+rf_high_24_mandatory_rates: ["12"]
+rf_high_24_supported_rates: ["18", "24", "36", "48", "54"]
+
+rf_high_24_dca_channels:    [1, 6, 11]
+rf_high_24_dca_interval:    300          # more frequent re-evaluation
+
+rf_high_24_coverage_exception: 20
+rf_high_24_coverage_min_rssi:  -75       # tighter RSSI floor
+
+# Band steering — maximum aggression; push clients to 5/6 GHz immediately
+rf_high_24_band_select_probe_response: true
+rf_high_24_band_select_cycle_count:    5
+rf_high_24_band_select_cycle_threshold: 100
+rf_high_24_band_select_age_timeout:    20
+
+# ── High: 5 GHz RF Profile ───────────────────────────────────────────────────
+# 20/40 MHz channels to maximize reuse factor across dense AP grid.
+# Raise mandatory rate floor to 24 Mbps — eliminates slow retransmit storms.
+# RX-SOP set high so APs don't associate far-away clients that belong elsewhere.
+rf_high_5ghz_name:         "RF-5GHz-High-Density"
+rf_high_5ghz_description:  "5 GHz — high-density, 40 MHz, 24 Mbps min, strict RX-SOP"
+
+rf_high_5_min_tx_power:    5     # dBm
+rf_high_5_max_tx_power:    14    # dBm — tight cells, high reuse
+rf_high_5_tpc_threshold:   -67
+rf_high_5_rx_sop_threshold: "high"
+rf_high_5_max_clients_per_radio: 100
+rf_high_5_max_clients_per_wlan:  30
+rf_high_5_channel_width:   "40"          # 20 or 40 MHz for maximum spatial reuse
+
+# Remove all rates below 24 Mbps; clients that can't hit 24 Mbps won't associate
+rf_high_5_disable_rates:   ["6", "9", "12", "18"]
+rf_high_5_mandatory_rates: ["24"]
+rf_high_5_supported_rates: ["36", "48", "54"]
+
+# DCA: prefer UNII-1/3 non-DFS first; DFS channels enabled for capacity
+rf_high_5_dca_channels:    [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 132, 136, 140, 149, 153, 157, 161, 165]
+rf_high_5_dca_interval:    300
+
+rf_high_5_coverage_exception: 20
+rf_high_5_coverage_min_rssi:  -75
+
+# ── High: 6 GHz RF Profile ───────────────────────────────────────────────────
+# Primary high-throughput band for Wi-Fi 6E/7 capable devices.
+# Target: laptops (macOS/Win/Linux), modern smartphones, tablets, NPCs.
+#
+# PSD budget at high density (LPI, 80 MHz):
+#   5 dBm/MHz PSD × 80 MHz → ~24 dBm total EIRP per FCC LPI rules.
+#   Tight TX power (3–17 dBm) keeps cells contained in dense AP grid.
+#
+# PSD budget (LPI, 160 MHz):
+#   5 dBm/MHz PSD × 160 MHz → ~27 dBm total EIRP.
+#   Use 160 MHz only if AP density allows gap-free coverage at that width.
+#
+# BSS Coloring: assigns unique colors (1–63) per BSS so APs can declare
+#   "foreign color" frames as inter-BSS and defer — critical in dense grids.
+#
+# TWT (Target Wake Time): schedules client wake windows; reduces probe/idle
+#   traffic from battery-powered devices (phones, tablets, IoT).
+#
+# OFDMA: subdivides channel RUs for parallel uplink/downlink scheduling —
+#   dramatically increases effective capacity in dense client environments.
+#
+# MU-MIMO: simultaneous spatial streams to multiple clients per AP.
+rf_high_6ghz_name:         "RF-6GHz-High-Density"
+rf_high_6ghz_description:  "6 GHz — high-density, Wi-Fi 6E LPI, 80/160 MHz, PSD-aware"
+
+rf_high_6_min_tx_power:    3     # dBm — tightest cells, LPI compliant
+rf_high_6_max_tx_power:    17    # dBm — constrained for dense AP grid
+rf_high_6_tpc_threshold:   -67
+rf_high_6_rx_sop_threshold: "high"
+rf_high_6_max_clients_per_radio: 100
+rf_high_6_max_clients_per_wlan:  30
+rf_high_6_channel_width:   "80"    # 80 MHz default; set "160" if site allows
+rf_high_6_psc_only:        true    # PSC channels for fastest client discovery
+
+# Remove 6/9/12 Mbps — force 802.11ax MCS associations at 18 Mbps minimum
+# High-density environments can't afford airtime wasted on slow OFDM legacy rates
+rf_high_6_disable_rates:   ["6", "9", "12"]
+rf_high_6_mandatory_rates: ["18", "24"]
+rf_high_6_supported_rates: ["36", "48", "54"]
+
+rf_high_6_lpi_mode:        true
+rf_high_6_bss_color_enable: true         # MANDATORY for high density — reduces CCI
+rf_high_6_twt_broadcast:   true          # schedules battery devices; frees airtime
+rf_high_6_ofdma_downlink:  true          # parallel downlink RU scheduling
+rf_high_6_ofdma_uplink:    true          # parallel uplink RU scheduling
+rf_high_6_mu_mimo_downlink: true
+rf_high_6_mu_mimo_uplink:  true
+
+# PSC 80 MHz channels for 6 GHz — use all UNII-5/6/7/8 PSC centers
+rf_high_6_dca_channels:    [5, 21, 37, 53, 69, 85]   # 80 MHz PSC centers only
+rf_high_6_dca_interval:    300
+
+rf_high_6_coverage_exception: 20
+rf_high_6_coverage_min_rssi:  -75
+
+# Roaming — tightest thresholds; 802.11k/r/v mandatory
+# Clients should roam before RSSI degrades below usable MCS rates
+rf_high_6_roaming_rssi_trigger: -65      # dBm — early roam trigger
+rf_high_6_dot11r_enabled:       true     # FT-PSK or FT-EAP
+rf_high_6_dot11k_enabled:       true     # neighbor reports — guide pre-roam
+rf_high_6_dot11v_enabled:       true     # BTM — proactively steer clients
+rf_high_6_okc_enabled:          true     # Opportunistic Key Caching for fast re-auth
+
+
+# =============================================================================
+# ── RF TAG BINDINGS ───────────────────────────────────────────────────────────
+# RF tags bind three RF profiles (2.4/5/6 GHz) to a logical site.
+# Each AP in the site inherits the RF policies from its assigned RF tag.
+# =============================================================================
+
+rf_tags:
+  - name:             "RF-Tag-Low-Density"
+    description:      "RF tag — low-density sites (warehouses, sparse offices)"
+    rf_profile_24ghz: "RF-2.4GHz-Low-Density"
+    rf_profile_5ghz:  "RF-5GHz-Low-Density"
+    rf_profile_6ghz:  "RF-6GHz-Low-Density"
+
+  - name:             "RF-Tag-Typical-Density"
+    description:      "RF tag — typical-density sites (offices, K-12, campus)"
+    rf_profile_24ghz: "RF-2.4GHz-Typical-Density"
+    rf_profile_5ghz:  "RF-5GHz-Typical-Density"
+    rf_profile_6ghz:  "RF-6GHz-Typical-Density"
+
+  - name:             "RF-Tag-High-Density"
+    description:      "RF tag — high-density sites (stadiums, transit, auditoriums)"
+    rf_profile_24ghz: "RF-2.4GHz-High-Density"
+    rf_profile_5ghz:  "RF-5GHz-High-Density"
+    rf_profile_6ghz:  "RF-6GHz-High-Density"

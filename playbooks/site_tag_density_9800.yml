@@ -1,0 +1,136 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# Site Tag Density Automation – Cisco Catalyst 9800 WLC
+#
+# Creates density-aware site tags for low, typical, and high client
+# populations. Each site tag documents the recommended RF tag pairing
+# so operators know which RF-Tag-<density>-Density to assign at the AP.
+#
+# Run rf_profile_density_9800.yml first to ensure RF tags exist.
+#
+# ── Tag relationship reminder ─────────────────────────────────────────────────
+#   AP = [site tag] + [RF tag] + [policy tag]
+#   This playbook manages site tags.
+#   RF tags (RF-Tag-Low/Typical/High-Density) are created by
+#     playbooks/rf_profile_density_9800.yml
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#     Step 1 — provision RF profiles and RF tags first:
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_density_9800.yml \
+#       -e @vars/rf_profile_density_defaults.yml
+#
+#     Step 2 — provision site tags:
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_density_9800.yml \
+#       -e @vars/site_tag_density_defaults.yml
+#
+#     Dry-run: ansible-playbook ... --check --diff
+#
+#   Windows – WSL 2
+#     wsl --install && pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     (run same commands as macOS above from WSL shell)
+#
+#   Windows – Docker (no WSL)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#   Android / iOS / NPC / tablet (via AAP)
+#     Import repo into Ansible Automation Platform → create Workflow Job Template:
+#       1. rf_profile_density_9800.yml
+#       2. site_tag_density_9800.yml (on_success)
+#     Run from any browser or the AAP mobile app — no local client tooling needed.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Site Tag Density Automation – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/site_tag_density_defaults.yml
+
+  tasks:
+
+    # ── Create site tags (central switching) ──────────────────────────────────
+    - name: Create density site tag (central switching) — {{ item.name }}
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " no local-site"
+      loop: "{{ density_site_tags }}"
+      when: not item.local_site | bool
+      loop_control:
+        label: "{{ item.name }} [{{ item.density_tier }}]"
+
+    # ── Create site tags (FlexConnect — local switching) ──────────────────────
+    - name: Create density site tag (FlexConnect, no flex profile) — {{ item.name }}
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " local-site"
+      loop: "{{ density_site_tags }}"
+      when:
+        - item.local_site | bool
+        - item.flex_profile == '' or item.flex_profile is not defined
+      loop_control:
+        label: "{{ item.name }} [{{ item.density_tier }}] FlexConnect"
+
+    - name: Create density site tag (FlexConnect, with flex profile) — {{ item.name }}
+      cisco.ios.ios_config:
+        lines:
+          - "wireless tag site {{ item.name }}"
+          - " description {{ item.description }}"
+          - " ap-profile {{ item.ap_profile }}"
+          - " local-site"
+          - " flex-profile {{ item.flex_profile }}"
+      loop: "{{ density_site_tags }}"
+      when:
+        - item.local_site | bool
+        - item.flex_profile is defined and item.flex_profile != ''
+      loop_control:
+        label: "{{ item.name }} [{{ item.density_tier }}] FlexConnect + {{ item.flex_profile }}"
+
+    # ── Verification ──────────────────────────────────────────────────────────
+    - name: Show site tag summary
+      cisco.ios.ios_command:
+        commands:
+          - "show wireless tag site summary"
+      register: site_tag_status
+
+    - name: Assert each density site tag was created
+      ansible.builtin.assert:
+        that:
+          - "item.name in site_tag_status.stdout[0]"
+        fail_msg: "Site tag '{{ item.name }}' [{{ item.density_tier }}] not found after provisioning"
+        success_msg: "Site tag '{{ item.name }}' [{{ item.density_tier }}] confirmed"
+      loop: "{{ density_site_tags }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ── Display RF tag pairing guidance ───────────────────────────────────────
+    - name: RF tag assignment reminder
+      ansible.builtin.debug:
+        msg: >-
+          Site tag '{{ item.name }}' created.
+          Assign RF tag '{{ item.recommended_rf_tag }}' to APs at this site:
+          ap <mac-address> tag rf {{ item.recommended_rf_tag }}
+      loop: "{{ density_site_tags }}"
+      loop_control:
+        label: "{{ item.name }}"

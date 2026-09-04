@@ -1,0 +1,163 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# Site Tag Density Defaults – Cisco Catalyst 9800 WLC
+#
+# Site tags bind an AP join profile to a logical site. The AP then receives
+# its RF and policy configuration from the matching RF tag and policy tag.
+#
+# Density-aware site tags map each physical location type to the correct
+# RF tag (from rf_profile_density_defaults.yml) via the ap_profile field.
+# The RF tag assignment happens at the AP level — set it in the AP config:
+#
+#   wireless tag rf RF-Tag-High-Density
+#   ap <mac>
+#     tag rf RF-Tag-High-Density
+#
+# Tag hierarchy reminder (every AP needs all three):
+#   Site tag   → AP join profile + flex profile (switching mode)
+#   RF tag     → 2.4 / 5 / 6 GHz RF profiles (data rates, power, RRM)
+#   Policy tag → WLAN-to-VLAN policy profile bindings
+#
+# ── Roaming notes per density tier ───────────────────────────────────────────
+#   Low density     RSSI trigger −75 dBm  802.11r/k/v enabled
+#   Typical density RSSI trigger −70 dBm  802.11r/k/v enabled
+#   High density    RSSI trigger −65 dBm  802.11r/k/v + OKC enabled
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_density_9800.yml \
+#       -e @vars/site_tag_density_defaults.yml
+#
+#   Windows (WSL 2)
+#     wsl --install && pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/site_tag_density_9800.yml \
+#       -e @vars/site_tag_density_defaults.yml
+#
+#   Android / iOS — use SSH client to reach a jump host, then run above.
+#   NPC / tablet — deploy via Ansible Automation Platform (AAP) web UI.
+#
+#   Dry-run: ansible-playbook ... --check --diff
+# =============================================================================
+
+# ── Density site tags ─────────────────────────────────────────────────────────
+#
+# Each entry creates one site tag. Pair each with the matching RF tag
+# (RF-Tag-<density>-Density) at the individual AP level.
+#
+# ap_profile values reference AP join profiles that should already exist;
+# create them with playbooks/ap_join_profile_9800.yml first if needed.
+#
+# recommended_rf_tag is documentation — Ansible does not set RF tags here.
+# Use the rf_tag_assignment list below to push RF tags to APs.
+
+density_site_tags:
+
+  # ── Low-density sites ──────────────────────────────────────────────────────
+  # Use for: warehouses, parking structures, lobbies, storage areas,
+  # spread-out campus buildings with few users per AP.
+  # 6 GHz: LPI 80 MHz, 12 Mbps minimum, no TWT, PSC channels.
+  - name:               "Site-Low-Density"
+    description:        "Low-density site — warehouse / lobby / sparse office"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         false        # false = central switching (default)
+    flex_profile:       ""
+    recommended_rf_tag: "RF-Tag-Low-Density"
+    density_tier:       "low"
+    notes:
+      - "2.4 GHz: 11 Mbps min, 20 dBm max, coverage-focused"
+      - "5 GHz: 12 Mbps min, 80 MHz, 20 dBm max"
+      - "6 GHz: 12 Mbps min, LPI 80 MHz PSC, 23 dBm max EIRP"
+      - "Roaming: 802.11r/k/v at -75 dBm trigger"
+      - "Band steering: push dual-band clients to 5/6 GHz"
+
+  # Low-density FlexConnect variant (branch office, remote site)
+  - name:               "Site-Low-Density-Flex"
+    description:        "Low-density FlexConnect — remote branch / warehouse"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         true         # local switching — FlexConnect
+    flex_profile:       "Flex-Branch"
+    recommended_rf_tag: "RF-Tag-Low-Density"
+    density_tier:       "low"
+    notes:
+      - "Local switching for sites with limited WAN bandwidth"
+      - "Same RF parameters as Site-Low-Density"
+      - "Clients survive WAN outage via local switching"
+
+  # ── Typical-density sites ──────────────────────────────────────────────────
+  # Use for: standard office floors, K-12 classrooms (1:1 device programs),
+  # government buildings, retail, healthcare wards.
+  # 6 GHz: LPI 80 MHz, 24 Mbps min, TWT enabled, BSS Color.
+  - name:               "Site-Typical-Density"
+    description:        "Typical-density site — office / K-12 / campus building"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         false
+    flex_profile:       ""
+    recommended_rf_tag: "RF-Tag-Typical-Density"
+    density_tier:       "typical"
+    notes:
+      - "2.4 GHz: 11 Mbps min, 17 dBm max, aggressive band-steer"
+      - "5 GHz: 12/24 Mbps min/mandatory, 80 MHz (RRM-best)"
+      - "6 GHz: 12/24 Mbps, LPI 80 MHz, BSS Color + TWT for battery devices"
+      - "Roaming: 802.11r/k/v at -70 dBm trigger"
+      - "Android 12+ / iOS 16+ / Win11 22H2+ clients 6E-capable on this band"
+      - "Tablets: iPadOS 16+ M1/M2, Samsung Galaxy Tab S8+ support 6E"
+
+  # Typical-density FlexConnect (regional office, clinic)
+  - name:               "Site-Typical-Density-Flex"
+    description:        "Typical-density FlexConnect — regional office / clinic"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         true
+    flex_profile:       "Flex-Branch"
+    recommended_rf_tag: "RF-Tag-Typical-Density"
+    density_tier:       "typical"
+    notes:
+      - "FlexConnect for sites requiring local VLAN switching"
+      - "Same RF parameters as Site-Typical-Density"
+
+  # ── High-density sites ─────────────────────────────────────────────────────
+  # Use for: transit hubs, stadiums/arenas, auditoriums, conference centers,
+  # military operations centers, dense university lecture halls.
+  # 6 GHz: LPI 80/160 MHz, 24 Mbps min, aggressive BSS Color + TWT + OFDMA.
+  # 2.4 GHz: legacy fallback only — tight TX power, 12 Mbps mandatory.
+  - name:               "Site-High-Density"
+    description:        "High-density site — transit / stadium / auditorium"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         false
+    flex_profile:       ""
+    recommended_rf_tag: "RF-Tag-High-Density"
+    density_tier:       "high"
+    notes:
+      - "2.4 GHz: 12 Mbps mandatory, 14 dBm max, legacy fallback only"
+      - "  — disable 1/2/5.5/6/9 Mbps; tight cells; high RX-SOP"
+      - "5 GHz: 24 Mbps mandatory, 40 MHz, 14 dBm max, 100 clients/radio cap"
+      - "  — 20/40 MHz for maximum spatial reuse in dense AP grid"
+      - "6 GHz: 18/24 Mbps mandatory, LPI 80 MHz PSC, 17 dBm max"
+      - "  — BSS Color MANDATORY; TWT + OFDMA + MU-MIMO aggressive"
+      - "  — disable 6/9/12 Mbps; only PSC channels for DCA"
+      - "  — PSD budget: 5 dBm/MHz x 80 MHz = ~24 dBm EIRP (LPI FCC)"
+      - "Roaming: 802.11r/k/v + OKC at -65 dBm trigger (early roam)"
+      - "  — BTM steering proactively moves clients before signal drops"
+      - "Device targets: laptops, smartphones, tablets, NPCs, IoT badges"
+
+  # High-density central — same RF, explicit central switching
+  - name:               "Site-High-Density-Central"
+    description:        "High-density central-switch — campus core / data center adjacent"
+    ap_profile:         "AP-Join-Standard"
+    local_site:         false
+    flex_profile:       ""
+    recommended_rf_tag: "RF-Tag-High-Density"
+    density_tier:       "high"
+    notes:
+      - "Central switching variant for sites with direct WLC connectivity"
+      - "Prefer this for high-bandwidth venues where WAN is not a bottleneck"
+      - "Same RF parameters as Site-High-Density"

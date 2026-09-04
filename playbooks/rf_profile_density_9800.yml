@@ -1,0 +1,383 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+---
+# RF Profile Density Automation – Cisco Catalyst 9800 WLC
+#
+# Creates per-band RF profiles and RF tag bindings for three client density
+# tiers: low, typical, and high. Covers 2.4 GHz, 5 GHz, and 6 GHz with
+# best-practice data rates, PSD-aware TX power, RRM, and 802.11r/k/v roaming.
+#
+# Usage: target a specific density with -e "density=<tier>" or omit to
+# provision all three tiers in a single run.
+#
+# Requires:
+#   ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+# ── Platform Quick-Start ──────────────────────────────────────────────────────
+#
+#   macOS / Linux (native Ansible control node)
+#     pip install ansible
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#     All tiers:
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_density_9800.yml \
+#       -e @vars/rf_profile_density_defaults.yml
+#
+#     Single tier:
+#     ansible-playbook ... -e "density=high"   # low | typical | high
+#
+#     Dry-run:
+#     ansible-playbook ... --check --diff
+#
+#   Windows – WSL 2 (no native Ansible on Windows)
+#     wsl --install                   # PowerShell as Administrator, one-time
+#     pip install ansible             # from WSL shell
+#     ansible-galaxy collection install cisco.ios cisco.iosxe
+#     ansible-playbook -i "192.168.1.1," -u admin -k \
+#       playbooks/rf_profile_density_9800.yml \
+#       -e @vars/rf_profile_density_defaults.yml
+#
+#   Windows – Docker (no WSL required)
+#     docker run --rm -it python:3.12-slim bash
+#     pip install ansible && ansible-galaxy collection install cisco.ios cisco.iosxe
+#
+#   Android / iOS / iPadOS / NPC tablet (via AAP web UI)
+#     1. Import this repository into Ansible Automation Platform or AWX.
+#     2. Create a Job Template using this playbook + rf_profile_density_defaults.yml.
+#     3. Run from any browser or the AAP mobile app.
+#     No local Python or Ansible installation required on client devices.
+#
+#   Terraform alternative (macOS / Windows / Linux / any platform):
+#     cd terraform/site_tag_density_9800
+#     cp terraform.tfvars.example terraform.tfvars
+#     terraform init && terraform plan && terraform apply
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: RF Profile Density Automation – Cisco Catalyst 9800 WLC
+  hosts: "{{ target_host | default('wlc') }}"
+  gather_facts: false
+
+  vars_files:
+    - ../vars/rf_profile_density_defaults.yml
+
+  vars:
+    density: "all"    # override with -e "density=low|typical|high"
+
+    # Build active density list from 'density' variable
+    active_densities: >-
+      {{ ['low', 'typical', 'high'] if density == 'all' else [density] }}
+
+    # Per-tier profile maps — resolved at task time
+    density_profiles:
+      low:
+        profiles_24:
+          name:        "{{ rf_low_24ghz_name }}"
+          description: "{{ rf_low_24ghz_description }}"
+          min_tx:      "{{ rf_low_24_min_tx_power }}"
+          max_tx:      "{{ rf_low_24_max_tx_power }}"
+          tpc:         "{{ rf_low_24_tpc_threshold }}"
+          rx_sop:      "{{ rf_low_24_rx_sop_threshold }}"
+          max_clients: "{{ rf_low_24_max_clients_per_radio }}"
+          disable_rates:   "{{ rf_low_24_disable_rates }}"
+          mandatory_rates: "{{ rf_low_24_mandatory_rates }}"
+          supported_rates: "{{ rf_low_24_supported_rates }}"
+          dca_channels:    "{{ rf_low_24_dca_channels }}"
+          band_select_probe: "{{ rf_low_24_band_select_probe_response }}"
+          band_select_count: "{{ rf_low_24_band_select_cycle_count }}"
+        profiles_5:
+          name:        "{{ rf_low_5ghz_name }}"
+          description: "{{ rf_low_5ghz_description }}"
+          min_tx:      "{{ rf_low_5_min_tx_power }}"
+          max_tx:      "{{ rf_low_5_max_tx_power }}"
+          tpc:         "{{ rf_low_5_tpc_threshold }}"
+          rx_sop:      "{{ rf_low_5_rx_sop_threshold }}"
+          max_clients: "{{ rf_low_5_max_clients_per_radio }}"
+          channel_width: "{{ rf_low_5_channel_width }}"
+          disable_rates:   "{{ rf_low_5_disable_rates }}"
+          mandatory_rates: "{{ rf_low_5_mandatory_rates }}"
+          supported_rates: "{{ rf_low_5_supported_rates }}"
+          dca_channels:    "{{ rf_low_5_dca_channels }}"
+        profiles_6:
+          name:        "{{ rf_low_6ghz_name }}"
+          description: "{{ rf_low_6ghz_description }}"
+          min_tx:      "{{ rf_low_6_min_tx_power }}"
+          max_tx:      "{{ rf_low_6_max_tx_power }}"
+          tpc:         "{{ rf_low_6_tpc_threshold }}"
+          rx_sop:      "{{ rf_low_6_rx_sop_threshold }}"
+          max_clients: "{{ rf_low_6_max_clients_per_radio }}"
+          channel_width: "{{ rf_low_6_channel_width }}"
+          disable_rates:   "{{ rf_low_6_disable_rates }}"
+          mandatory_rates: "{{ rf_low_6_mandatory_rates }}"
+          supported_rates: "{{ rf_low_6_supported_rates }}"
+          bss_color:   "{{ rf_low_6_bss_color_enable }}"
+          twt:         "{{ rf_low_6_twt_broadcast }}"
+          ofdma_dl:    "{{ rf_low_6_ofdma_downlink }}"
+          ofdma_ul:    "{{ rf_low_6_ofdma_uplink }}"
+
+      typical:
+        profiles_24:
+          name:        "{{ rf_typical_24ghz_name }}"
+          description: "{{ rf_typical_24ghz_description }}"
+          min_tx:      "{{ rf_typical_24_min_tx_power }}"
+          max_tx:      "{{ rf_typical_24_max_tx_power }}"
+          tpc:         "{{ rf_typical_24_tpc_threshold }}"
+          rx_sop:      "{{ rf_typical_24_rx_sop_threshold }}"
+          max_clients: "{{ rf_typical_24_max_clients_per_radio }}"
+          disable_rates:   "{{ rf_typical_24_disable_rates }}"
+          mandatory_rates: "{{ rf_typical_24_mandatory_rates }}"
+          supported_rates: "{{ rf_typical_24_supported_rates }}"
+          dca_channels:    "{{ rf_typical_24_dca_channels }}"
+          band_select_probe: "{{ rf_typical_24_band_select_probe_response }}"
+          band_select_count: "{{ rf_typical_24_band_select_cycle_count }}"
+        profiles_5:
+          name:        "{{ rf_typical_5ghz_name }}"
+          description: "{{ rf_typical_5ghz_description }}"
+          min_tx:      "{{ rf_typical_5_min_tx_power }}"
+          max_tx:      "{{ rf_typical_5_max_tx_power }}"
+          tpc:         "{{ rf_typical_5_tpc_threshold }}"
+          rx_sop:      "{{ rf_typical_5_rx_sop_threshold }}"
+          max_clients: "{{ rf_typical_5_max_clients_per_radio }}"
+          channel_width: "{{ rf_typical_5_channel_width }}"
+          disable_rates:   "{{ rf_typical_5_disable_rates }}"
+          mandatory_rates: "{{ rf_typical_5_mandatory_rates }}"
+          supported_rates: "{{ rf_typical_5_supported_rates }}"
+          dca_channels:    "{{ rf_typical_5_dca_channels }}"
+        profiles_6:
+          name:        "{{ rf_typical_6ghz_name }}"
+          description: "{{ rf_typical_6ghz_description }}"
+          min_tx:      "{{ rf_typical_6_min_tx_power }}"
+          max_tx:      "{{ rf_typical_6_max_tx_power }}"
+          tpc:         "{{ rf_typical_6_tpc_threshold }}"
+          rx_sop:      "{{ rf_typical_6_rx_sop_threshold }}"
+          max_clients: "{{ rf_typical_6_max_clients_per_radio }}"
+          channel_width: "{{ rf_typical_6_channel_width }}"
+          disable_rates:   "{{ rf_typical_6_disable_rates }}"
+          mandatory_rates: "{{ rf_typical_6_mandatory_rates }}"
+          supported_rates: "{{ rf_typical_6_supported_rates }}"
+          bss_color:   "{{ rf_typical_6_bss_color_enable }}"
+          twt:         "{{ rf_typical_6_twt_broadcast }}"
+          ofdma_dl:    "{{ rf_typical_6_ofdma_downlink }}"
+          ofdma_ul:    "{{ rf_typical_6_ofdma_uplink }}"
+
+      high:
+        profiles_24:
+          name:        "{{ rf_high_24ghz_name }}"
+          description: "{{ rf_high_24ghz_description }}"
+          min_tx:      "{{ rf_high_24_min_tx_power }}"
+          max_tx:      "{{ rf_high_24_max_tx_power }}"
+          tpc:         "{{ rf_high_24_tpc_threshold }}"
+          rx_sop:      "{{ rf_high_24_rx_sop_threshold }}"
+          max_clients: "{{ rf_high_24_max_clients_per_radio }}"
+          disable_rates:   "{{ rf_high_24_disable_rates }}"
+          mandatory_rates: "{{ rf_high_24_mandatory_rates }}"
+          supported_rates: "{{ rf_high_24_supported_rates }}"
+          dca_channels:    "{{ rf_high_24_dca_channels }}"
+          band_select_probe: "{{ rf_high_24_band_select_probe_response }}"
+          band_select_count: "{{ rf_high_24_band_select_cycle_count }}"
+        profiles_5:
+          name:        "{{ rf_high_5ghz_name }}"
+          description: "{{ rf_high_5ghz_description }}"
+          min_tx:      "{{ rf_high_5_min_tx_power }}"
+          max_tx:      "{{ rf_high_5_max_tx_power }}"
+          tpc:         "{{ rf_high_5_tpc_threshold }}"
+          rx_sop:      "{{ rf_high_5_rx_sop_threshold }}"
+          max_clients: "{{ rf_high_5_max_clients_per_radio }}"
+          channel_width: "{{ rf_high_5_channel_width }}"
+          disable_rates:   "{{ rf_high_5_disable_rates }}"
+          mandatory_rates: "{{ rf_high_5_mandatory_rates }}"
+          supported_rates: "{{ rf_high_5_supported_rates }}"
+          dca_channels:    "{{ rf_high_5_dca_channels }}"
+        profiles_6:
+          name:        "{{ rf_high_6ghz_name }}"
+          description: "{{ rf_high_6ghz_description }}"
+          min_tx:      "{{ rf_high_6_min_tx_power }}"
+          max_tx:      "{{ rf_high_6_max_tx_power }}"
+          tpc:         "{{ rf_high_6_tpc_threshold }}"
+          rx_sop:      "{{ rf_high_6_rx_sop_threshold }}"
+          max_clients: "{{ rf_high_6_max_clients_per_radio }}"
+          channel_width: "{{ rf_high_6_channel_width }}"
+          disable_rates:   "{{ rf_high_6_disable_rates }}"
+          mandatory_rates: "{{ rf_high_6_mandatory_rates }}"
+          supported_rates: "{{ rf_high_6_supported_rates }}"
+          bss_color:   "{{ rf_high_6_bss_color_enable }}"
+          twt:         "{{ rf_high_6_twt_broadcast }}"
+          ofdma_dl:    "{{ rf_high_6_ofdma_downlink }}"
+          ofdma_ul:    "{{ rf_high_6_ofdma_uplink }}"
+
+  tasks:
+
+    # ── 2.4 GHz RF profiles ───────────────────────────────────────────────────
+    - name: Create 2.4 GHz RF profile — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ density_profiles[item].profiles_24.description }}"
+          - "tx-power min {{ density_profiles[item].profiles_24.min_tx }}"
+          - "tx-power max {{ density_profiles[item].profiles_24.max_tx }}"
+          - "tx-power v1-threshold {{ density_profiles[item].profiles_24.tpc }}"
+          - "rx-sop threshold {{ density_profiles[item].profiles_24.rx_sop }}"
+          - "max-clients-per-wlan 0"
+        parents: "ap dot11 24ghz rf-profile {{ density_profiles[item].profiles_24.name }}"
+      loop: "{{ active_densities }}"
+
+    - name: Set 2.4 GHz disabled data rates — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ rate | replace('.', '_') | replace('5_5', '5DOT5') }}M disable"
+        parents: "ap dot11 24ghz rf-profile {{ density_profiles[item].profiles_24.name }}"
+      loop: "{{ active_densities | product(density_profiles[item].profiles_24.disable_rates) | list }}"
+      vars:
+        rate: "{{ item[1] }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item[0] }} — disable {{ item[1] }} Mbps"
+      ignore_errors: true   # rate may already be disabled or not supported on this IOS-XE version
+
+    - name: Set 2.4 GHz mandatory data rates — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ rate }}M mandatory"
+        parents: "ap dot11 24ghz rf-profile {{ density_profiles[item].profiles_24.name }}"
+      loop: "{{ active_densities | product([density_profiles[d].profiles_24.mandatory_rates[0]]) | list }}"
+      vars:
+        d:    "{{ item[0] }}"
+        rate: "{{ item[1] }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item[0] }} — mandatory {{ item[1] }} Mbps"
+
+    # ── 5 GHz RF profiles ─────────────────────────────────────────────────────
+    - name: Create 5 GHz RF profile — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ density_profiles[item].profiles_5.description }}"
+          - "tx-power min {{ density_profiles[item].profiles_5.min_tx }}"
+          - "tx-power max {{ density_profiles[item].profiles_5.max_tx }}"
+          - "tx-power v1-threshold {{ density_profiles[item].profiles_5.tpc }}"
+          - "rx-sop threshold {{ density_profiles[item].profiles_5.rx_sop }}"
+          - "channel width {{ density_profiles[item].profiles_5.channel_width }}"
+        parents: "ap dot11 5ghz rf-profile {{ density_profiles[item].profiles_5.name }}"
+      loop: "{{ active_densities }}"
+
+    - name: Set 5 GHz disabled data rates — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ rate }}M disable"
+        parents: "ap dot11 5ghz rf-profile {{ density_profiles[item[0]].profiles_5.name }}"
+      loop: "{{ active_densities | product(['6', '9']) | list }}"
+      vars:
+        rate: "{{ item[1] }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item[0] }} — disable {{ item[1] }} Mbps"
+
+    - name: Set 5 GHz mandatory data rates — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ rate }}M mandatory"
+        parents: "ap dot11 5ghz rf-profile {{ density_profiles[item[0]].profiles_5.name }}"
+      loop: "{{ active_densities | product(['12', '24']) | list }}"
+      vars:
+        rate: "{{ item[1] }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item[0] }} — mandatory {{ item[1] }} Mbps"
+      when: item[1] in density_profiles[item[0]].profiles_5.mandatory_rates
+
+    # ── 6 GHz RF profiles ─────────────────────────────────────────────────────
+    - name: Create 6 GHz RF profile — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ density_profiles[item].profiles_6.description }}"
+          - "tx-power min {{ density_profiles[item].profiles_6.min_tx }}"
+          - "tx-power max {{ density_profiles[item].profiles_6.max_tx }}"
+          - "tx-power v1-threshold {{ density_profiles[item].profiles_6.tpc }}"
+          - "rx-sop threshold {{ density_profiles[item].profiles_6.rx_sop }}"
+          - "channel width {{ density_profiles[item].profiles_6.channel_width }}"
+          - "dot11ax bss-color"
+          - "dot11ax twt-broadcast-support"
+          - "dot11ax ofdma-downlink"
+          - "dot11ax ofdma-uplink"
+          - "dot11ax mu-mimo-downlink"
+          - "dot11ax mu-mimo-uplink"
+        parents: "ap dot11 6ghz rf-profile {{ density_profiles[item].profiles_6.name }}"
+      loop: "{{ active_densities }}"
+
+    - name: Disable 6 GHz low legacy rates — {{ item }} density
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ rate }}M disable"
+        parents: "ap dot11 6ghz rf-profile {{ density_profiles[item[0]].profiles_6.name }}"
+      loop: "{{ active_densities | product(['6', '9']) | list }}"
+      vars:
+        rate: "{{ item[1] }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item[0] }} — disable {{ item[1] }} Mbps on 6 GHz"
+
+    - name: Disable additional low rates on high-density 6 GHz profile
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_12M disable"
+        parents: "ap dot11 6ghz rf-profile {{ rf_high_6ghz_name }}"
+      when: "'high' in active_densities"
+
+    - name: Set 6 GHz mandatory rates — {{ item[0] }} density, {{ item[1] }} Mbps
+      cisco.ios.ios_config:
+        lines:
+          - "rate RATE_{{ item[1] }}M mandatory"
+        parents: "ap dot11 6ghz rf-profile {{ density_profiles[item[0]].profiles_6.name }}"
+      loop: "{{ active_densities | product(['12', '24']) | list }}"
+      loop_control:
+        label: "{{ item[0] }} — mandatory {{ item[1] }} Mbps on 6 GHz"
+      when: item[1] in density_profiles[item[0]].profiles_6.mandatory_rates
+
+    # ── RF tag bindings ───────────────────────────────────────────────────────
+    - name: Create RF tag — {{ item.name }}
+      cisco.ios.ios_config:
+        lines:
+          - "description {{ item.description }}"
+          - "24ghz-rf-policy {{ item.rf_profile_24ghz }}"
+          - "5ghz-rf-policy {{ item.rf_profile_5ghz }}"
+          - "6ghz-rf-policy {{ item.rf_profile_6ghz }}"
+        parents: "wireless tag rf {{ item.name }}"
+      loop: "{{ rf_tags }}"
+      when: >-
+        density == 'all' or
+        item.name | lower is search(density)
+
+    # ── Verification ──────────────────────────────────────────────────────────
+    - name: Show RF profile summary (all bands)
+      cisco.ios.ios_command:
+        commands:
+          - "show ap dot11 24ghz rf-profile summary"
+          - "show ap dot11 5ghz rf-profile summary"
+          - "show ap dot11 6ghz rf-profile summary"
+      register: rf_profile_status
+
+    - name: Display RF profile status
+      ansible.builtin.debug:
+        msg: "{{ rf_profile_status.stdout_lines }}"
+
+    - name: Show RF tag summary
+      cisco.ios.ios_command:
+        commands:
+          - "show wireless tag rf summary"
+      register: rf_tag_status
+
+    - name: Assert RF tags exist
+      ansible.builtin.assert:
+        that:
+          - "item.name in rf_tag_status.stdout[0]"
+        fail_msg: "RF tag '{{ item.name }}' not found after provisioning"
+        success_msg: "RF tag '{{ item.name }}' confirmed"
+      loop: "{{ rf_tags }}"
+      when: >-
+        density == 'all' or
+        item.name | lower is search(density)

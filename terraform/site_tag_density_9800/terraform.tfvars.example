@@ -1,0 +1,36 @@
+# =============================================================================
+# terraform.tfvars.example — Site Tag Density Templates
+# Copy to terraform.tfvars and fill in your values.
+# Do NOT commit terraform.tfvars — it contains credentials.
+# Use TF_VAR_wlc_password env var in CI/CD pipelines.
+# =============================================================================
+
+# ── WLC connection ────────────────────────────────────────────────────────────
+wlc_host     = "192.168.1.1"    # WLC management IP or hostname
+wlc_username = "admin"
+# wlc_password set via: export TF_VAR_wlc_password="your-password"
+
+# ── Optional: override density tier for 6 GHz 160 MHz at high-density sites ──
+# To use 160 MHz on the high-density 6 GHz profile (if AP density allows):
+#
+# rf_profiles_6ghz = [
+#   ...keep low and typical entries from variables.tf defaults...
+#   {
+#     name                  = "RF-6GHz-High-Density"
+#     description           = "6 GHz — high-density, Wi-Fi 6E LPI, 160 MHz"
+#     min_tx_power          = 3
+#     max_tx_power          = 17
+#     tpc_threshold         = -67
+#     rx_sop_threshold      = "high"
+#     max_clients_per_radio = 100
+#     channel_width         = "160"    # 160 MHz — use only if AP grid supports it
+#     disable_rates         = ["6", "9", "12"]
+#     mandatory_rates       = ["18", "24"]
+#     bss_color_enable      = true
+#     twt_broadcast         = true
+#     ofdma_downlink        = true
+#     ofdma_uplink          = true
+#     mu_mimo_downlink      = true
+#     mu_mimo_uplink        = true
+#   }
+# ]
