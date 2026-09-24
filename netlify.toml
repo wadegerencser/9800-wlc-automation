@@ -1,0 +1,48 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Netlify configuration — documentation site
+#
+# Builds the MkDocs documentation and deploys to Netlify.
+# Access docs from any device: macOS, Windows, Linux, Android, iOS, tablet.
+#
+# To deploy:
+#   1. Connect this repo to Netlify (netlify.com → New site from Git).
+#   2. Netlify auto-detects this toml and runs the build command below.
+#   3. Every push to main re-deploys the docs site automatically.
+#
+# Local preview (macOS / Linux / WSL):
+#   pip install mkdocs mkdocs-material
+#   mkdocs serve   # http://127.0.0.1:8000
+# =============================================================================
+
+[build]
+  command     = "pip install mkdocs mkdocs-material && mkdocs build"
+  publish     = "site"
+  base        = "."
+
+[build.environment]
+  PYTHON_VERSION = "3.12"
+
+# ── Deploy previews — generated for every PR ──────────────────────────────────
+[context.deploy-preview]
+  command = "pip install mkdocs mkdocs-material && mkdocs build"
+
+# ── Branch deploys — main branch is production ────────────────────────────────
+[context.branch-deploy]
+  command = "pip install mkdocs mkdocs-material && mkdocs build"
+
+# ── Redirects ─────────────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/"
+  to     = "/index.html"
+  status = 200
+
+# ── Security headers ──────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-XSS-Protection       = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
