@@ -1,0 +1,64 @@
+# =============================================================================
+# Cisco CX US Public Sector Automation Hub
+# Repository : sac-mgerencs-9800-wlc-automation
+# Author     : Wade Gerencser (mgerencs) · CX US Public Sector
+# Copyright  : (c) 2026 Cisco and/or its affiliates.
+# License    : MIT — see LICENSE
+# =============================================================================
+#
+# This repository is mirrored to a PUBLIC remote (github.com/wadegerencser).
+# Anything customer-identifying, credentialed, or engagement-specific must stay
+# out of version control entirely — history is mirrored, not just the worktree.
+
+# ── Customer engagement artifacts (never commit) ──────────────────────────────
+# Report builders and scrub data tied to named customer engagements.
+build_nasa_*.py
+build_final_report.py
+fetch_bst.py
+bst_results.json
+*_bug_scrub*.docx
+*_SW_Analysis_Report*.docx
+
+# ── Credentials and session material ──────────────────────────────────────────
+*cookie*
+*COOKIE*
+.env
+.env.*
+*.pem
+*.key
+*_token
+*_token.json
+secrets.y*ml
+vars/*_secrets.y*ml
+
+# ── Automation state and logs ─────────────────────────────────────────────────
+.9800_pr_state.json
+*.log
+
+# ── Terraform ─────────────────────────────────────────────────────────────────
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# ── Ansible ───────────────────────────────────────────────────────────────────
+*.retry
+host_vars/
+inventory.ini
+inventory.y*ml
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ── macOS / editor ────────────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
